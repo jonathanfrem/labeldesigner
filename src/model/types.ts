@@ -74,10 +74,56 @@ export const IDENTITY_PRINTER_PROFILE: PrinterProfile = {
 };
 
 /**
- * Element types, token parsing and the full document model land in M2 — this
- * shape exists so M0 code that needs "a document" has something to reference,
- * not as the real model.
+ * Text, image and barcode elements land in M3/M5 with their fonts and asset
+ * pipelines. M2 covers the plain vector shapes only.
  */
+export interface BaseElement {
+  id: string;
+  name: string;
+  x: Mm;
+  y: Mm;
+  width: Mm;
+  height: Mm;
+  /** Degrees clockwise about the box centre — matches SVG's `rotate()` sense directly. */
+  rotation: number;
+  locked: boolean;
+  visible: boolean;
+  opacity: number;
+}
+
+export interface RectElement extends BaseElement {
+  type: 'rect';
+  fill?: string;
+  stroke?: string;
+  strokeWidth: Mm;
+  /** Clamped the same way as a template's die-cut radius: min(radius, width/2, height/2). */
+  cornerRadius?: Mm;
+}
+
+export interface EllipseElement extends BaseElement {
+  type: 'ellipse';
+  fill?: string;
+  stroke?: string;
+  strokeWidth: Mm;
+}
+
+/**
+ * Drawn from the left-mid to right-mid point of the unrotated box, then
+ * rotated about the box centre like every other element — so `rotation` is
+ * the only thing that controls a line's angle, and `height` is deliberately
+ * inert. Keeping the same box+rotation shape as rect/ellipse means the
+ * transform UI (resize/rotate handles) works identically across element
+ * types; the editor suppresses the top/bottom handles for lines specifically
+ * because they'd have nothing to do.
+ */
+export interface LineElement extends BaseElement {
+  type: 'line';
+  stroke: string;
+  strokeWidth: Mm;
+}
+
+export type Element = RectElement | EllipseElement | LineElement;
+
 export interface LabelDocument {
   schemaVersion: 1;
   id: string;
@@ -85,5 +131,7 @@ export interface LabelDocument {
   templateId: string;
   template: SheetTemplate;
   size: { width: Mm; height: Mm };
-  elements: unknown[];
+  /** Clipped to the template's die-cut shape, same as every element. */
+  background?: { fill?: string };
+  elements: Element[];
 }

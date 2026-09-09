@@ -239,6 +239,17 @@ function migrate(raw: unknown): LabelDocument  // throws a readable error on unk
 Reject files above the known schema version with a clear message rather than partially
 loading them.
 
+`LabelDocument` stores a full denormalised `SheetTemplate` copy, not just a `templateId` —
+a saved `.lbl.json` is self-contained and must open correctly on a machine that has never
+seen the template. This drives two load-path behaviours for M6:
+
+1. If the document's template id isn't found in the library, offer to add it as a custom
+   template. Without this the file still reprints correctly, but the user can't start a new
+   label on that stock.
+2. If the id is found but its geometry differs from the embedded copy, don't silently apply
+   either version. Keep the embedded copy — reopening a file must never move existing
+   artwork — and surface the difference with an option to update to the library version.
+
 ### 4.2 Rounded corners and clipping
 
 Plenty of stock is die-cut with rounded corners and margins on all four sides (BNT

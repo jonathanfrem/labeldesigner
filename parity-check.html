@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>M2 renderer parity check</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #14181c; color: #e6e9ec; padding: 24px; }
+      h1 { font-size: 16px; font-weight: 600; }
+      .row { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 16px; }
+      .cell { text-align: center; }
+      .cell canvas, .cell svg { background: #fff; border: 1px solid #444; image-rendering: pixelated; width: 320px; height: auto; }
+      .cell h2 { font-size: 12px; font-weight: 500; color: #9aa4ad; margin: 0 0 6px; }
+      pre { background: #1c2126; border: 1px solid #333; padding: 12px; border-radius: 4px; white-space: pre-wrap; }
+      #status { color: #9aa4ad; }
+    </style>
+  </head>
+  <body>
+    <h1>M2 — SVG vs PDF renderer parity check</h1>
+    <p id="status">Rendering…</p>
+    <div id="root"></div>
+    <script type="module" src="/scripts/parity-check.client.tsx"></script>
+  </body>
+</html>

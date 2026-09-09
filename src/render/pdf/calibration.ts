@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, type PDFFont } from 'pdf-lib';
 import type { SheetTemplate, PrinterProfile } from '../../model/types';
 import { IDENTITY_PRINTER_PROFILE } from '../../model/types';
 import { allSlots, type Rect } from '../../model/geometry';
@@ -10,11 +10,21 @@ const CROSSHAIR_ARM_MM = 4;
 const RADIUS_GAUGE_VALUES_MM = [2, 3, 4, 5, 6];
 const RADIUS_GAUGE_SPACING_MM = 12;
 const RULER_TICK_INTERVAL_MM = 1;
-const RULER_LENGTH_MM = 50;
+/** Must reach the reference length the workbench UI asks the user to measure (Workbench.tsx REFERENCE_LENGTH_MM). */
+const RULER_LENGTH_MM = 100;
 const RULER_TICK_LONG_MM = 3;
 const RULER_TICK_SHORT_MM = 1.5;
+const RULER_LABEL_INTERVAL_MM = 10;
+const RULER_LABEL_SIZE_PT = 5;
 const OUTLINE_COLOR = rgb(0, 0, 0);
 const LINE_WIDTH_PT = 0.4;
+
+/**
+ * Numeric labels are the only text this diagnostic sheet draws — they're not
+ * part of the label document model, so CLAUDE.md's "fontkit is the only
+ * source of text measurement" invariant (which guards SVG/PDF parity for
+ * user content) doesn't apply here. A standard PDF font is fine.
+ */
 
 export interface CalibrationSlotCrosshair {
   col: number;
@@ -37,6 +47,7 @@ export async function renderCalibrationSheetPdf(
   profile: PrinterProfile = IDENTITY_PRINTER_PROFILE,
 ): Promise<{ bytes: Uint8Array; crosshairs: CalibrationSlotCrosshair[] }> {
   const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
   const page = doc.addPage([mmToPt(template.pageSize.width), mmToPt(template.pageSize.height)]);
   const pageHeightMm = template.pageSize.height;
 
@@ -55,7 +66,7 @@ export async function renderCalibrationSheetPdf(
     }
   }
 
-  drawRuler(page, template, pageHeightMm);
+  drawRuler(page, template, pageHeightMm, font);
   drawRadiusGauge(page, template, pageHeightMm);
 
   return { bytes: await doc.save({ useObjectStreams: false }), crosshairs };
@@ -88,25 +99,43 @@ function drawCrosshair(page: import('pdf-lib').PDFPage, centerMm: { x: number; y
   page.drawLine({ start: { x: cx, y: cy - armPt }, end: { x: cx, y: cy + armPt }, thickness: LINE_WIDTH_PT, color: OUTLINE_COLOR });
 }
 
-function drawRuler(page: import('pdf-lib').PDFPage, template: SheetTemplate, pageHeightMm: number) {
-  // Top ruler: ticks along y=0, running along x from 0 to RULER_LENGTH_MM.
+function drawRuler(page: import('pdf-lib').PDFPage, template: SheetTemplate, pageHeightMm: number, font: PDFFont) {
+  // Top ruler: ticks along y=0, running along x from 0 to RULER_LENGTH_MM, with mm labels every 10mm.
   for (let mm = 0; mm <= RULER_LENGTH_MM; mm += RULER_TICK_INTERVAL_MM) {
-    const isLong = mm % 10 === 0;
+    const isLong = mm % RULER_LABEL_INTERVAL_MM === 0;
     const tickLenMm = isLong ? RULER_TICK_LONG_MM : RULER_TICK_SHORT_MM;
     const x = mmToPt(mm);
     const yTop = yFlip(0, pageHeightMm);
     const yBottom = yFlip(tickLenMm, pageHeightMm);
     page.drawLine({ start: { x, y: yTop }, end: { x, y: yBottom }, thickness: LINE_WIDTH_PT, color: OUTLINE_COLOR });
+    if (isLong) {
+      page.drawText(String(mm), {
+        x: x + mmToPt(0.5),
+        y: yBottom - RULER_LABEL_SIZE_PT,
+        size: RULER_LABEL_SIZE_PT,
+        font,
+        color: OUTLINE_COLOR,
+      });
+    }
   }
 
-  // Left ruler: ticks along x=0, running along y from 0 to RULER_LENGTH_MM.
+  // Left ruler: ticks along x=0, running along y from 0 to RULER_LENGTH_MM, with mm labels every 10mm.
   for (let mm = 0; mm <= RULER_LENGTH_MM; mm += RULER_TICK_INTERVAL_MM) {
-    const isLong = mm % 10 === 0;
+    const isLong = mm % RULER_LABEL_INTERVAL_MM === 0;
     const tickLenMm = isLong ? RULER_TICK_LONG_MM : RULER_TICK_SHORT_MM;
     const y = yFlip(mm, pageHeightMm);
     const xLeft = mmToPt(0);
     const xRight = mmToPt(tickLenMm);
     page.drawLine({ start: { x: xLeft, y }, end: { x: xRight, y }, thickness: LINE_WIDTH_PT, color: OUTLINE_COLOR });
+    if (isLong) {
+      page.drawText(String(mm), {
+        x: xRight + mmToPt(0.5),
+        y: y - RULER_LABEL_SIZE_PT / 2,
+        size: RULER_LABEL_SIZE_PT,
+        font,
+        color: OUTLINE_COLOR,
+      });
+    }
   }
 
   void template;

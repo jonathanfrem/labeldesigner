@@ -5,6 +5,7 @@ import { SheetPreview } from '../../render/svg/SheetPreview';
 import { renderEmptySheetPdf } from '../../render/pdf/sheet';
 import { renderCalibrationSheetPdf } from '../../render/pdf/calibration';
 import { NumberField } from '../../components/NumberField';
+import { Editor } from '../editor/Editor';
 
 const REFERENCE_LENGTH_MM = 100;
 
@@ -40,7 +41,10 @@ const IDENTITY_CALIBRATION: MeasuredCalibration = {
   measuredScaleY: 1,
 };
 
+type WorkbenchTab = 'design' | 'print';
+
 export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchProps) {
+  const [tab, setTab] = useState<WorkbenchTab>(autoOpenCalibration ? 'print' : 'design');
   const [calibration, setCalibration] = useState<MeasuredCalibration>(IDENTITY_CALIBRATION);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
 
@@ -93,13 +97,28 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
   }, [autoOpenCalibration]);
 
   return (
-    <div className="flex-1 flex min-h-0">
-      <aside className="w-80 shrink-0 border-r border-line bg-panel p-4 space-y-6 overflow-y-auto">
+    <div className="flex-1 flex flex-col min-h-0">
+      <div className="shrink-0 flex items-center gap-4 px-4 h-10 border-b border-line bg-panel">
         <button className="text-xs text-ink-secondary hover:text-ink" onClick={onBack}>
           Back to library
         </button>
+        <span className="text-xs text-ink-tertiary">{template.name}</span>
+        <div className="ml-auto flex gap-1">
+          <TabButton active={tab === 'design'} onClick={() => setTab('design')}>
+            Design
+          </TabButton>
+          <TabButton active={tab === 'print'} onClick={() => setTab('print')}>
+            Print &amp; calibration
+          </TabButton>
+        </div>
+      </div>
 
-        <section>
+      {tab === 'design' && <Editor template={template} />}
+
+      {tab === 'print' && (
+        <div className="flex-1 flex min-h-0">
+          <aside className="w-80 shrink-0 border-r border-line bg-panel p-4 space-y-6 overflow-y-auto">
+            <section>
           <SectionLabel>Template</SectionLabel>
           <h2 className="text-sm font-medium text-ink">{template.name}</h2>
           {!template.verified && (
@@ -183,8 +202,21 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
             <SheetPreview template={template} className="h-full max-h-[900px] bg-paper shadow-[0_1px_3px_rgba(0,0,0,0.3)]" />
           </div>
         )}
-      </main>
+          </main>
+        </div>
+      )}
     </div>
+  );
+}
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      className={`px-2.5 py-1 rounded text-xs ${active ? 'bg-accent/20 text-ink' : 'text-ink-secondary hover:bg-panel-raised'}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
 

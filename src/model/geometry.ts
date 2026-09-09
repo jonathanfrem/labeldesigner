@@ -7,6 +7,65 @@ export interface Rect {
   height: Mm;
 }
 
+export interface Point {
+  x: Mm;
+  y: Mm;
+}
+
+export function boxCenter(rect: Rect): Point {
+  return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+}
+
+/**
+ * Rotates a point about `center` by `degreesClockwise`, in mm space with a
+ * top-left origin (y grows downward) — the model/SVG convention. This is the
+ * one place rotation math lives; both renderers place already-rotated points
+ * rather than each applying their own rotate transform, so there's no risk
+ * of the PDF path's y-axis flip silently reversing the rotation direction.
+ */
+export function rotatePoint(point: Point, center: Point, degreesClockwise: number): Point {
+  if (degreesClockwise === 0) return point;
+  const rad = (degreesClockwise * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos,
+  };
+}
+
+/** Axis-aligned bounding box of a rect rotated about its own centre. */
+export function rotatedAabb(rect: Rect, degreesClockwise: number): Rect {
+  if (degreesClockwise === 0) return rect;
+  const center = boxCenter(rect);
+  const corners = [
+    { x: rect.x, y: rect.y },
+    { x: rect.x + rect.width, y: rect.y },
+    { x: rect.x + rect.width, y: rect.y + rect.height },
+    { x: rect.x, y: rect.y + rect.height },
+  ].map((p) => rotatePoint(p, center, degreesClockwise));
+  const xs = corners.map((p) => p.x);
+  const ys = corners.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
+}
+
+/**
+ * A line element's endpoints: the left-mid and right-mid points of its
+ * unrotated box, rotated about the box centre. See `LineElement` for why the
+ * box's height doesn't otherwise participate.
+ */
+export function lineEndpoints(rect: Rect, degreesClockwise: number): [Point, Point] {
+  const center = boxCenter(rect);
+  const midY = center.y;
+  const p1 = { x: rect.x, y: midY };
+  const p2 = { x: rect.x + rect.width, y: midY };
+  return [rotatePoint(p1, center, degreesClockwise), rotatePoint(p2, center, degreesClockwise)];
+}
+
 export interface DerivedMargins {
   gapX: Mm;
   gapY: Mm;
