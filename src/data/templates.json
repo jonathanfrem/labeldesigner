@@ -16,7 +16,8 @@
     "shape": "rect",
     "builtIn": true,
     "verified": false,
-    "source": "PLAN.md §5: 2x105=210 (no side margin), 4x70=280 leaving 8.5mm top/bottom. Avery 3426 equivalent."
+    "source": "PLAN.md §5: 2x105=210 (no side margin), 4x70=280 leaving 8.5mm top/bottom. Avery 3426 equivalent.",
+    "equivalents": ["Avery 3426"]
   },
   {
     "id": "europe100-ela022",
@@ -35,7 +36,8 @@
     "shape": "rect",
     "builtIn": true,
     "verified": false,
-    "source": "PLAN.md §5: 2x105=210 (no side margin), 5x57=285 leaving 6mm top/bottom. Avery 3425 equivalent."
+    "source": "PLAN.md §5: 2x105=210 (no side margin), 5x57=285 leaving 6mm top/bottom. Avery 3425 equivalent.",
+    "equivalents": ["Avery 3425"]
   },
   {
     "id": "europe100-ela034",
@@ -92,7 +94,8 @@
     "shape": "rect",
     "builtIn": true,
     "verified": false,
-    "source": "Derived from retailer listing (12/sheet, 2x6 of 105x48mm): 2x105=210 no side margin; 6x48=288 leaving 4.5mm top/bottom, zero gap assumed. Not measured."
+    "source": "Derived from retailer listing (12/sheet, 2x6 of 105x48mm): 2x105=210 no side margin; 6x48=288 leaving 4.5mm top/bottom, zero gap assumed. Not measured.",
+    "equivalents": ["Avery 3424"]
   },
   {
     "id": "europe100-ela024",
@@ -226,6 +229,7 @@
     "shape": "rect",
     "builtIn": true,
     "verified": false,
-    "source": "PLAN.md §5: 65/sheet, vendor states Avery L7651 compatibility — geometry copied from the Avery L7651 entry. Not measured."
+    "source": "PLAN.md §5: 65/sheet, vendor states Avery L7651 compatibility — geometry copied from the Avery L7651 entry. Not measured.",
+    "equivalents": ["Avery L7651"]
   }
 ]

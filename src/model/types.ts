@@ -19,8 +19,28 @@ export interface SheetTemplate {
   shape: LabelShape;
   cornerRadius?: Mm;
   builtIn: boolean;
+  /**
+   * Means two different things depending on `builtIn`, and is set through two
+   * different paths:
+   *
+   * - `builtIn: true` — a build-time claim: this geometry was confirmed by a
+   *   physical test print before release. It ships fixed in templates.json
+   *   and is never changed at runtime; that's a release gate, not something
+   *   the running app can decide. Correcting it means shipping a new build.
+   * - `builtIn: false` — a user action, toggled from the template detail
+   *   panel after the user has printed a test sheet themselves.
+   *
+   * Editing a built-in's geometry only happens via duplicate-and-edit, which
+   * forks it to a new custom template with `verified: false` and
+   * `derivedFrom` set — the fork earns its own verification, it doesn't
+   * inherit the original's.
+   */
   verified: boolean;
   source?: string;
+  /** Other vendors' part numbers this stock is sold as compatible with, e.g. "Avery 3426". Searchable. */
+  equivalents?: string[];
+  /** Id of the template this was duplicated from. Provenance only — never read by geometry or rendering. */
+  derivedFrom?: string;
 }
 
 /**
