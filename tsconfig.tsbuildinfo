@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/model/geometry.ts","./src/model/types.ts","./src/render/pdf/calibration.ts","./src/render/pdf/roundedrect.ts","./src/render/pdf/shapeoutline.ts","./src/render/pdf/sheet.ts","./src/render/pdf/units.ts","./src/render/svg/sheetpreview.tsx"],"version":"5.9.3"}
