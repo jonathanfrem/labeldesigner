@@ -122,7 +122,40 @@ export interface LineElement extends BaseElement {
   strokeWidth: Mm;
 }
 
-export type Element = RectElement | EllipseElement | LineElement;
+export type TextHorizontalAlign = 'left' | 'center' | 'right' | 'justify';
+export type TextVerticalAlign = 'top' | 'middle' | 'bottom';
+
+export interface TextElement extends BaseElement {
+  type: 'text';
+  /** May contain `{{Field}}` and `{{counter}}` tokens — rendered literally until M7's merge UI. */
+  content: string;
+  /** Id into the font catalogue (src/text/fontCatalog.ts); family and weight are baked into the id. */
+  fontId: string;
+  fontSizePt: number;
+  /** Multiplier of fontSizePt, not the font's own line-gap metric. */
+  lineHeight: number;
+  /** Em units, added as extra advance after every glyph. */
+  letterSpacing: number;
+  align: TextHorizontalAlign;
+  verticalAlign: TextVerticalAlign;
+  color: string;
+  /** Shrinks fontSizePt down to fit the box height rather than overflowing. */
+  autoShrink: boolean;
+  minFontSizePt?: number;
+}
+
+export type Element = RectElement | EllipseElement | LineElement | TextElement;
+
+/**
+ * Degrees clockwise the artwork is rotated *within* the template's die-cut —
+ * the die-cut itself never moves. 90/270 let a portrait design sit in a
+ * landscape slot (or vice versa): `size` swaps to match, and the whole
+ * canvas is authored upright in that rotated frame. Only applied when
+ * placing the document onto a sheet slot for print/preview — see
+ * `placeInSlot` in model/geometry.ts. The editor always renders the
+ * document in its own local frame, unaware of this rotation.
+ */
+export type ContentRotation = 0 | 90 | 180 | 270;
 
 export interface LabelDocument {
   schemaVersion: 1;
@@ -130,7 +163,9 @@ export interface LabelDocument {
   name: string;
   templateId: string;
   template: SheetTemplate;
+  /** Matches the template's label size, swapped when contentRotation is 90/270 — see `contentCanvasSize`. */
   size: { width: Mm; height: Mm };
+  contentRotation: ContentRotation;
   /** Clipped to the template's die-cut shape, same as every element. */
   background?: { fill?: string };
   elements: Element[];

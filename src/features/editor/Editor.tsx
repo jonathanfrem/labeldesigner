@@ -5,6 +5,7 @@ import { EditorToolbar } from './EditorToolbar';
 import { LabelCanvas } from './LabelCanvas';
 import { LayersPanel } from './LayersPanel';
 import { PropertiesPanel } from './PropertiesPanel';
+import { TextFormatToolbar } from './TextFormatToolbar';
 
 export interface EditorProps {
   template: SheetTemplate;
@@ -33,6 +34,7 @@ export function Editor({ template }: EditorProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <EditorToolbar />
+      <TextFormatToolbar />
       <div className="flex-1 flex min-h-0">
         <aside className="w-56 shrink-0 border-r border-line bg-panel overflow-y-auto">
           <LayersPanel />

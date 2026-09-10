@@ -1,8 +1,10 @@
 import { useStore } from 'zustand';
+import type { ContentRotation } from '../../model/types';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
 
 const ZOOM_STEP = 0.25;
+const ROTATION_CYCLE: Record<ContentRotation, ContentRotation> = { 0: 90, 90: 180, 180: 270, 270: 0 };
 
 export function EditorToolbar() {
   const temporal = useStore(useDocumentStore.temporal);
@@ -12,6 +14,8 @@ export function EditorToolbar() {
   const showBleed = useUiStore((s) => s.showBleed);
   const toggleSafeArea = useUiStore((s) => s.toggleSafeArea);
   const toggleBleed = useUiStore((s) => s.toggleBleed);
+  const contentRotation = useDocumentStore((s) => s.document.contentRotation);
+  const setContentRotation = useDocumentStore((s) => s.setContentRotation);
 
   return (
     <div className="flex items-center gap-3 px-3 py-1.5 border-b border-line bg-panel text-xs">
@@ -35,6 +39,15 @@ export function EditorToolbar() {
           +
         </ToolbarButton>
       </div>
+
+      <div className="w-px h-4 bg-line" />
+
+      <ToolbarButton
+        title="Rotate the artwork within the die-cut — the die-cut itself never moves"
+        onClick={() => setContentRotation(ROTATION_CYCLE[contentRotation])}
+      >
+        ⟳ Canvas {contentRotation}°
+      </ToolbarButton>
 
       <div className="w-px h-4 bg-line" />
 

@@ -4,13 +4,17 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { LabelDocument, SheetTemplate } from '../src/model/types';
 import { drawLabelDocument } from '../src/render/pdf/document';
+import { embedFontsForElements } from '../src/render/pdf/fonts';
 import { mmToPt } from '../src/render/pdf/units';
 import { DocumentRenderer } from '../src/render/svg/DocumentRenderer';
+import { slotPlacement } from '../src/render/placement';
+import { ensureFontFaceRegistered } from '../src/text/fontFace';
+import { loadFont } from '../src/text/fontLoader';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
 
 /**
- * Fixed template + document for the M2 renderer parity check. Not part of
+ * Fixed templates + documents for the renderer parity check. Not part of
  * the app — this file is only reachable via parity-check.html, which isn't
  * referenced from index.html/main.tsx, so it never enters `npm run build`'s
  * module graph (invariant 1: pdfjs-dist stays a devDependency only).
@@ -40,6 +44,7 @@ const DEMO_DOCUMENT: LabelDocument = {
   templateId: DEMO_TEMPLATE.id,
   template: DEMO_TEMPLATE,
   size: { width: 60, height: 40 },
+  contentRotation: 0,
   background: { fill: '#eef2f5' },
   elements: [
     {
@@ -106,8 +111,95 @@ const DEMO_DOCUMENT: LabelDocument = {
       stroke: '#047857',
       strokeWidth: 0.4,
     },
+    // M3 acceptance criteria (PLAN §11): Norwegian characters, tight negative
+    // tracking, and a box narrow enough to force wraps — the case most
+    // likely to drift between the two renderers if either one ever touched
+    // browser text layout.
+    {
+      id: 't1',
+      name: 'Typography parity text',
+      type: 'text',
+      x: 2,
+      y: 2,
+      width: 26,
+      height: 30,
+      rotation: -8,
+      locked: false,
+      visible: true,
+      opacity: 1,
+      content: 'Blåbær\nsyltetøy\nÆØÅ fra Ærlegård gård i Blåfjell',
+      fontId: 'source-serif-4-bold',
+      fontSizePt: 9,
+      lineHeight: 1.05,
+      letterSpacing: -0.04,
+      align: 'left',
+      verticalAlign: 'top',
+      color: '#0f172a',
+      autoShrink: false,
+    },
   ],
 };
+
+/**
+ * Same physical die-cut as DEMO_TEMPLATE (60×40 landscape), but the document
+ * is authored contentRotation:90 — `size` swaps to 40×60 portrait, and the
+ * elements below are laid out upright in that portrait frame. This is the
+ * case that exercises `placeInSlot`: both renderers must rotate this local
+ * content 90° into the landscape slot, not just translate it.
+ */
+const ROTATED_DEMO_DOCUMENT: LabelDocument = {
+  schemaVersion: 1,
+  id: 'parity-demo-doc-rotated',
+  name: 'Parity demo (contentRotation 90)',
+  templateId: DEMO_TEMPLATE.id,
+  template: DEMO_TEMPLATE,
+  size: { width: 40, height: 60 },
+  contentRotation: 90,
+  background: { fill: '#fef3e8' },
+  elements: [
+    {
+      id: 'rr1',
+      name: 'Top band',
+      type: 'rect',
+      x: 4,
+      y: 4,
+      width: 32,
+      height: 14,
+      rotation: 0,
+      locked: false,
+      visible: true,
+      opacity: 1,
+      fill: '#f59e0b',
+      stroke: '#b45309',
+      strokeWidth: 0.5,
+      cornerRadius: 2,
+    },
+    {
+      id: 'rt1',
+      name: 'Portrait text',
+      type: 'text',
+      x: 4,
+      y: 24,
+      width: 32,
+      height: 30,
+      rotation: 0,
+      locked: false,
+      visible: true,
+      opacity: 1,
+      content: 'Blåbær\nÆØÅ portrett',
+      fontId: 'inter-bold',
+      fontSizePt: 8,
+      lineHeight: 1.15,
+      letterSpacing: 0,
+      align: 'center',
+      verticalAlign: 'top',
+      color: '#111827',
+      autoShrink: false,
+    },
+  ],
+};
+
+const SLOT_RECT = { x: 0, y: 0, width: DEMO_TEMPLATE.labelWidth, height: DEMO_TEMPLATE.labelHeight };
 
 const DPI = 300;
 const PX_W = Math.round((DEMO_TEMPLATE.labelWidth * DPI) / 25.4);
@@ -138,17 +230,13 @@ function rasterizeSvg(svgEl: SVGSVGElement): Promise<HTMLCanvasElement> {
   });
 }
 
-async function rasterizePdf(): Promise<HTMLCanvasElement> {
+async function rasterizePdf(doc: LabelDocument): Promise<HTMLCanvasElement> {
   const pdfDoc = await PDFDocument.create();
   const pageWidthPt = mmToPt(DEMO_TEMPLATE.labelWidth);
   const pageHeightPt = mmToPt(DEMO_TEMPLATE.labelHeight);
   const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
-  drawLabelDocument(
-    page,
-    DEMO_DOCUMENT,
-    { x: 0, y: 0, width: DEMO_TEMPLATE.labelWidth, height: DEMO_TEMPLATE.labelHeight },
-    DEMO_TEMPLATE.labelHeight,
-  );
+  const fonts = await embedFontsForElements(pdfDoc, doc.elements);
+  drawLabelDocument(page, doc, SLOT_RECT, DEMO_TEMPLATE.labelHeight, fonts);
   const bytes = await pdfDoc.save({ useObjectStreams: false });
 
   const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
@@ -202,7 +290,7 @@ function diffCanvases(a: HTMLCanvasElement, b: HTMLCanvasElement): DiffResult {
   };
 }
 
-function ParityCheck() {
+function Scenario({ title, doc }: { title: string; doc: LabelDocument }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [result, setResult] = useState<{ svg: HTMLCanvasElement; pdf: HTMLCanvasElement; diff: DiffResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -210,18 +298,27 @@ function ParityCheck() {
   useEffect(() => {
     (async () => {
       try {
+        // TextShape (DocumentRenderer.tsx) renders nothing for a text element
+        // until its font has loaded, then re-renders once it has. Warm the
+        // cache and wait a couple of frames for that re-render to commit
+        // before rasterizing the SVG, so the comparison isn't racing fetch().
+        const fontIds = [...new Set(doc.elements.filter((e) => e.type === 'text').map((e) => e.fontId))];
+        await Promise.all(fontIds.flatMap((id) => [loadFont(id), ensureFontFaceRegistered(id)]));
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
         const svgCanvas = await rasterizeSvg(svgRef.current!);
-        const pdfCanvas = await rasterizePdf();
+        const pdfCanvas = await rasterizePdf(doc);
         const diff = diffCanvases(svgCanvas, pdfCanvas);
         setResult({ svg: svgCanvas, pdf: pdfCanvas, diff });
       } catch (err) {
         setError(String(err));
       }
     })();
-  }, []);
+  }, [doc]);
 
   return (
-    <>
+    <section style={{ marginBottom: 32 }}>
+      <h1>{title}</h1>
       <svg
         ref={svgRef}
         width={PX_W}
@@ -230,7 +327,7 @@ function ParityCheck() {
         xmlns="http://www.w3.org/2000/svg"
       >
         <rect x={0} y={0} width={DEMO_TEMPLATE.labelWidth} height={DEMO_TEMPLATE.labelHeight} fill="#ffffff" />
-        <DocumentRenderer document={DEMO_DOCUMENT} origin={{ x: 0, y: 0 }} clipId="parity-demo-clip" />
+        <DocumentRenderer document={doc} clipId={`parity-clip-${doc.id}`} placement={slotPlacement(doc, SLOT_RECT)} />
       </svg>
 
       {error && <pre style={{ color: '#f87171' }}>{error}</pre>}
@@ -251,7 +348,7 @@ function ParityCheck() {
               <img src={result.diff.diffCanvas.toDataURL()} width={320} />
             </div>
           </div>
-          <pre id="stats">
+          <pre className="stats">
             {`pixels compared: ${PX_W * PX_H} (${PX_W}x${PX_H} @ ${DPI}dpi)
 mean per-pixel channel delta: ${result.diff.meanDiff.toFixed(3)} / 255
 max per-pixel channel delta: ${result.diff.maxDiff.toFixed(1)} / 255
@@ -259,6 +356,15 @@ pixels over threshold (${DIFF_THRESHOLD}/255): ${result.diff.pctOverThreshold.to
           </pre>
         </>
       )}
+    </section>
+  );
+}
+
+function ParityCheck() {
+  return (
+    <>
+      <Scenario title="SVG vs PDF renderer parity — shapes, text" doc={DEMO_DOCUMENT} />
+      <Scenario title="SVG vs PDF renderer parity — contentRotation: 90" doc={ROTATED_DEMO_DOCUMENT} />
     </>
   );
 }

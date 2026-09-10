@@ -5,6 +5,7 @@ import { boxCenter, rotatePoint, rotatedAabb } from '../../model/geometry';
 import { collectSnapTargets, snapBoxPosition, type SnapGuide } from '../../model/snap';
 import { handlesForElementType, resizeBox, rotationFromPointer, type HandleId } from '../../model/transform';
 import { newElementId } from '../../lib/id';
+import { ptToMm } from '../../text/layout';
 import { labelClipToSvgPath } from '../../render/pdf/labelClip';
 import { DocumentRenderer } from '../../render/svg/DocumentRenderer';
 import { useDocumentStore } from '../../state/documentStore';
@@ -69,6 +70,8 @@ export function LabelCanvas() {
 
   const [liveOverrides, setLiveOverrides] = useState<Record<string, Partial<Element>>>({});
   const [marqueeRect, setMarqueeRect] = useState<Rect | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
 
   const selectedIds = useUiStore((s) => s.selectedIds);
   const zoom = useUiStore((s) => s.zoom);
@@ -260,8 +263,17 @@ export function LabelCanvas() {
 
   const pxWidth = document.size.width * BASE_PX_PER_MM * zoom;
   const pxHeight = document.size.height * BASE_PX_PER_MM * zoom;
+  const mmToPx = BASE_PX_PER_MM * zoom;
+
+  function commitEdit() {
+    if (editingId) updateElements([{ id: editingId, patch: { content: editText } }]);
+    setEditingId(null);
+  }
+
+  const editingElement = editingId ? elements.find((e) => e.id === editingId) : undefined;
 
   return (
+    <div className="relative" style={{ width: pxWidth, height: pxHeight }}>
     <svg
       ref={svgRef}
       viewBox={`0 0 ${document.size.width} ${document.size.height}`}
@@ -275,7 +287,7 @@ export function LabelCanvas() {
       {/* The die-cut boundary itself — shown even with no background fill, so the shape is always visible. */}
       <path d={labelClipToSvgPath(template, labelRect)} fill="#ffffff" stroke="#999" strokeWidth={0.2} vectorEffect="non-scaling-stroke" />
 
-      <DocumentRenderer document={displayDocument} origin={{ x: 0, y: 0 }} clipId="editor-label-clip" />
+      <DocumentRenderer document={displayDocument} clipId="editor-label-clip" />
 
       {showSafeArea && (
         <path
@@ -322,6 +334,11 @@ export function LabelCanvas() {
             transform={`rotate(${el.rotation} ${center.x} ${center.y})`}
             style={{ cursor: el.locked ? 'default' : 'move', pointerEvents: el.visible ? 'all' : 'none' }}
             onPointerDown={(e) => !el.locked && handlePointerDownElement(e, elements.find((e2) => e2.id === el.id)!)}
+            onDoubleClick={() => {
+              if (el.locked || el.type !== 'text') return;
+              setEditText(el.content);
+              setEditingId(el.id);
+            }}
           />
         );
       })}
@@ -353,6 +370,35 @@ export function LabelCanvas() {
         />
       )}
     </svg>
+
+    {editingElement && editingElement.type === 'text' && (
+      <textarea
+        autoFocus
+        value={editText}
+        onChange={(e) => setEditText(e.target.value)}
+        onBlur={commitEdit}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.stopPropagation();
+            setEditingId(null);
+          } else if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            (e.target as HTMLTextAreaElement).blur();
+          }
+        }}
+        className="absolute bg-white/95 border border-accent outline-none resize-none text-black px-0.5"
+        style={{
+          left: editingElement.x * mmToPx,
+          top: editingElement.y * mmToPx,
+          width: editingElement.width * mmToPx,
+          height: editingElement.height * mmToPx,
+          fontSize: ptToMm(editingElement.fontSizePt) * mmToPx,
+          transform: `rotate(${editingElement.rotation}deg)`,
+          transformOrigin: 'center center',
+        }}
+      />
+    )}
+    </div>
   );
 }
 

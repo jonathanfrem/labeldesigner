@@ -1,17 +1,19 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
-import type { Element, LabelDocument, SheetTemplate } from '../model/types';
+import type { ContentRotation, Element, LabelDocument, SheetTemplate } from '../model/types';
+import { contentCanvasSize } from '../model/geometry';
 import { newElementId } from '../lib/id';
 
-function blankDocument(template: SheetTemplate): LabelDocument {
+function blankDocument(template: SheetTemplate, contentRotation: ContentRotation = 0): LabelDocument {
   return {
     schemaVersion: 1,
     id: `doc-${template.id}`,
     name: template.name,
     templateId: template.id,
     template,
-    size: { width: template.labelWidth, height: template.labelHeight },
+    size: contentCanvasSize(template, contentRotation),
+    contentRotation,
     elements: [],
   };
 }
@@ -44,6 +46,7 @@ interface DocumentState {
   duplicateElements: (ids: string[]) => string[];
   setElementOrder: (orderedIds: string[]) => void;
   setBackgroundFill: (fill: string | undefined) => void;
+  setContentRotation: (rotation: ContentRotation) => void;
 }
 
 /**
@@ -124,6 +127,20 @@ export const useDocumentStore = create<DocumentState>()(
       setBackgroundFill: (fill) => {
         set((state) => {
           state.document.background = fill ? { fill } : undefined;
+        });
+      },
+
+      /**
+       * Only the rotation and the canvas size derived from it change here —
+       * existing elements keep their x/y/width/height as authored. Rotating
+       * an already-populated canvas can leave elements outside the new
+       * bounds; that's an expected consequence of changing orientation
+       * after the fact, not something this action tries to fix up.
+       */
+      setContentRotation: (rotation) => {
+        set((state) => {
+          state.document.contentRotation = rotation;
+          state.document.size = contentCanvasSize(state.document.template, rotation);
         });
       },
     })),

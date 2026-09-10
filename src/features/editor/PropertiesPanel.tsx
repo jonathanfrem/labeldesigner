@@ -82,38 +82,104 @@ function SingleElementProperties({ element, onChange }: { element: Element; onCh
         </div>
       </section>
 
-      <section>
-        <SectionLabel>Appearance</SectionLabel>
-        <div className="space-y-2">
-          {element.type !== 'line' && (
-            <ColorField label="Fill" value={element.fill} onChange={(v) => onChange({ fill: v })} />
-          )}
-          <ColorField label="Stroke" value={element.stroke} onChange={(v) => onChange({ stroke: v })} allowEmpty={element.type !== 'line'} />
-          <NumberField
-            label="Stroke width (mm)"
-            value={element.strokeWidth}
-            onChange={(v) => onChange({ strokeWidth: Math.max(0, v) })}
-          />
-          {element.type === 'rect' && (
+      {element.type === 'text' ? (
+        <TextProperties element={element} onChange={onChange} />
+      ) : (
+        <section>
+          <SectionLabel>Appearance</SectionLabel>
+          <div className="space-y-2">
+            {element.type !== 'line' && (
+              <ColorField label="Fill" value={element.fill} onChange={(v) => onChange({ fill: v })} />
+            )}
+            <ColorField label="Stroke" value={element.stroke} onChange={(v) => onChange({ stroke: v })} allowEmpty={element.type !== 'line'} />
             <NumberField
-              label="Corner radius (mm)"
-              value={element.cornerRadius ?? 0}
-              onChange={(v) => onChange({ cornerRadius: Math.max(0, v) })}
+              label="Stroke width (mm)"
+              value={element.strokeWidth}
+              onChange={(v) => onChange({ strokeWidth: Math.max(0, v) })}
             />
-          )}
-          <label className="block">
-            <span className="block text-ink-tertiary text-[11px] mb-1">Opacity</span>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={element.opacity}
-              onChange={(e) => onChange({ opacity: Number(e.target.value) })}
-              className="w-full"
-            />
-          </label>
+            {element.type === 'rect' && (
+              <NumberField
+                label="Corner radius (mm)"
+                value={element.cornerRadius ?? 0}
+                onChange={(v) => onChange({ cornerRadius: Math.max(0, v) })}
+              />
+            )}
+            <label className="block">
+              <span className="block text-ink-tertiary text-[11px] mb-1">Opacity</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={element.opacity}
+                onChange={(e) => onChange({ opacity: Number(e.target.value) })}
+                className="w-full"
+              />
+            </label>
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+/**
+ * Font family/size/weight/colour and alignment live in the TextFormatToolbar
+ * at the top of the editor (BarTender-style), not here — this panel only
+ * holds the settings that don't fit a toolbar icon.
+ */
+function TextProperties({
+  element,
+  onChange,
+}: {
+  element: Extract<Element, { type: 'text' }>;
+  onChange: (patch: Partial<Element>) => void;
+}) {
+  return (
+    <>
+      <section>
+        <SectionLabel>Content</SectionLabel>
+        <textarea
+          className="w-full h-20 bg-panel-raised border border-line rounded px-2 py-1.5 text-sm text-ink resize-y focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent"
+          value={element.content}
+          onChange={(e) => onChange({ content: e.target.value })}
+        />
+      </section>
+
+      <section>
+        <SectionLabel>Spacing</SectionLabel>
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label="Line height ×" value={element.lineHeight} onChange={(v) => onChange({ lineHeight: Math.max(0.1, v) })} />
+          <NumberField label="Letter spacing (em)" value={element.letterSpacing} onChange={(v) => onChange({ letterSpacing: v })} />
         </div>
+      </section>
+
+      <section>
+        <SectionLabel>Auto-shrink</SectionLabel>
+        <label className="flex items-center gap-1.5 text-ink-secondary text-sm mb-2">
+          <input type="checkbox" checked={element.autoShrink} onChange={(e) => onChange({ autoShrink: e.target.checked })} />
+          Shrink to fit the box rather than overflow
+        </label>
+        {element.autoShrink && (
+          <NumberField
+            label="Minimum size (pt)"
+            value={element.minFontSizePt ?? element.fontSizePt}
+            onChange={(v) => onChange({ minFontSizePt: Math.max(1, v) })}
+          />
+        )}
+      </section>
+
+      <section>
+        <SectionLabel>Opacity</SectionLabel>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={element.opacity}
+          onChange={(e) => onChange({ opacity: Number(e.target.value) })}
+          className="w-full"
+        />
       </section>
     </>
   );
@@ -149,10 +215,29 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <h3 className="text-xs font-medium text-ink-secondary mb-2 pl-2 border-l-2 border-line-strong">{children}</h3>;
 }
 
-function IconButton({ label, title, onClick }: { label: string; title: string; onClick: () => void }) {
+function IconButton({
+  label,
+  title,
+  onClick,
+  active,
+  children,
+}: {
+  label?: string;
+  title: string;
+  onClick: () => void;
+  active?: boolean;
+  children?: React.ReactNode;
+}) {
   return (
-    <button title={title} className="bg-panel-raised hover:bg-line border border-line rounded py-1 text-xs text-ink" onClick={onClick}>
-      {label}
+    <button
+      title={title}
+      aria-pressed={active}
+      onClick={onClick}
+      className={`flex items-center justify-center gap-1 border rounded py-1 text-xs ${
+        active ? 'bg-accent/20 border-accent text-ink' : 'bg-panel-raised border-line text-ink hover:bg-line'
+      }`}
+    >
+      {children ?? label}
     </button>
   );
 }

@@ -27,22 +27,27 @@ export interface VectorPath {
 }
 
 /**
- * Rotates every point in a path about `center`, in mm model space. Used so
- * a rotated element's path is fully resolved before either renderer sees
- * it — see `rotatePoint` for why rotation is handled here rather than via
- * each renderer's own transform primitive.
+ * Maps every point in a path through an arbitrary function. The one place
+ * any geometric transform (element rotation, sheet-slot placement) gets
+ * applied to a shape — always as literal point math, never a renderer-native
+ * transform primitive, so a path can pass through as many of these as
+ * needed before either renderer converts it to its own drawing commands.
  */
-export function rotatePath(path: VectorPath, center: Point, degreesClockwise: number): VectorPath {
-  if (degreesClockwise === 0) return path;
-  const rp = (p: Point) => rotatePoint(p, center, degreesClockwise);
+export function mapPath(path: VectorPath, fn: (p: Point) => Point): VectorPath {
   return {
-    start: rp(path.start),
+    start: fn(path.start),
     segments: path.segments.map((segment) =>
       segment.line
-        ? { line: rp(segment.line) }
-        : { curve: { c1: rp(segment.curve!.c1), c2: rp(segment.curve!.c2), end: rp(segment.curve!.end) } },
+        ? { line: fn(segment.line) }
+        : { curve: { c1: fn(segment.curve!.c1), c2: fn(segment.curve!.c2), end: fn(segment.curve!.end) } },
     ),
   };
+}
+
+/** Rotates every point in a path about `center`, in mm model space. */
+export function rotatePath(path: VectorPath, center: Point, degreesClockwise: number): VectorPath {
+  if (degreesClockwise === 0) return path;
+  return mapPath(path, (p) => rotatePoint(p, center, degreesClockwise));
 }
 
 /** Renders a path as SVG `<path>` `d` attribute data, in mm user units. */

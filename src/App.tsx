@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SheetTemplate } from './model/types';
 import { IndexedDbTemplateStorageAdapter } from './storage/indexedDbTemplateStorageAdapter';
 import { useTemplateRepository } from './storage/useTemplateRepository';
+import { AboutPanel } from './features/about/AboutPanel';
 import { TemplateLibrary } from './features/templates/TemplateLibrary';
 import { CustomTemplateEditor } from './features/templates/CustomTemplateEditor';
 import { Workbench } from './features/workbench/Workbench';
@@ -36,6 +37,7 @@ type View =
 export default function App() {
   const { allTemplates, saveCustom, setCustomVerified } = useTemplateRepository(adapter);
   const [view, setView] = useState<View>({ type: 'library' });
+  const [showAbout, setShowAbout] = useState(false);
 
   function openNewCustom() {
     setView({ type: 'editor', title: 'New custom template', draft: defaultCustomTemplate() });
@@ -69,7 +71,12 @@ export default function App() {
     <div className="h-screen bg-canvas text-ink flex flex-col">
       <header className="shrink-0 h-12 flex items-center px-4 border-b border-line bg-panel">
         <span className="text-sm font-medium text-ink">Label designer</span>
+        <button className="ml-auto text-xs text-ink-tertiary hover:text-ink" onClick={() => setShowAbout(true)}>
+          About &amp; licences
+        </button>
       </header>
+
+      {showAbout && <AboutPanel onClose={() => setShowAbout(false)} />}
 
       {view.type === 'library' && (
         <TemplateLibrary

@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import type { Element } from '../../model/types';
+import { EllipseToolIcon, LineToolIcon, RectToolIcon, TextToolIcon } from '../../components/icons';
 import { newElementId } from '../../lib/id';
+import { DEFAULT_FONT_ID } from '../../text/fontCatalog';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
 
 function newShape(type: Element['type']): Element {
   const base = {
     id: newElementId(),
-    name: type === 'rect' ? 'Rectangle' : type === 'ellipse' ? 'Ellipse' : 'Line',
+    name: type === 'rect' ? 'Rectangle' : type === 'ellipse' ? 'Ellipse' : type === 'line' ? 'Line' : 'Text',
     x: 10,
     y: 10,
-    width: type === 'line' ? 30 : 20,
-    height: type === 'line' ? 0 : 15,
+    width: type === 'line' ? 30 : type === 'text' ? 40 : 20,
+    height: type === 'line' ? 0 : type === 'text' ? 12 : 15,
     rotation: 0,
     locked: false,
     visible: true,
@@ -19,6 +21,21 @@ function newShape(type: Element['type']): Element {
   };
   if (type === 'rect') return { ...base, type: 'rect', fill: '#94a3b8', stroke: '#334155', strokeWidth: 0.3 };
   if (type === 'ellipse') return { ...base, type: 'ellipse', fill: '#94a3b8', stroke: '#334155', strokeWidth: 0.3 };
+  if (type === 'text') {
+    return {
+      ...base,
+      type: 'text',
+      content: 'Text',
+      fontId: DEFAULT_FONT_ID,
+      fontSizePt: 10,
+      lineHeight: 1.2,
+      letterSpacing: 0,
+      align: 'left',
+      verticalAlign: 'top',
+      color: '#1a1a1a',
+      autoShrink: false,
+    };
+  }
   return { ...base, type: 'line', stroke: '#334155', strokeWidth: 0.5 };
 }
 
@@ -57,10 +74,19 @@ export function LayersPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-2 border-b border-line flex gap-1">
-        <ToolButton label="Rect" onClick={() => addAndSelect('rect')} />
-        <ToolButton label="Ellipse" onClick={() => addAndSelect('ellipse')} />
-        <ToolButton label="Line" onClick={() => addAndSelect('line')} />
+      <div className="p-2 border-b border-line flex gap-0.5">
+        <ToolButton title="Rectangle" onClick={() => addAndSelect('rect')}>
+          <RectToolIcon />
+        </ToolButton>
+        <ToolButton title="Ellipse" onClick={() => addAndSelect('ellipse')}>
+          <EllipseToolIcon />
+        </ToolButton>
+        <ToolButton title="Line" onClick={() => addAndSelect('line')}>
+          <LineToolIcon />
+        </ToolButton>
+        <ToolButton title="Text" onClick={() => addAndSelect('text')}>
+          <TextToolIcon />
+        </ToolButton>
       </div>
       <div className="flex-1 overflow-y-auto">
         {topDown.length === 0 && <p className="p-3 text-xs text-ink-tertiary">No elements yet — add a shape above.</p>}
@@ -152,10 +178,14 @@ export function LayersPanel() {
   );
 }
 
-function ToolButton({ label, onClick }: { label: string; onClick: () => void }) {
+function ToolButton({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button className="flex-1 bg-panel-raised hover:bg-line border border-line rounded px-2 py-1 text-xs text-ink" onClick={onClick}>
-      + {label}
+    <button
+      title={title}
+      className="flex-1 flex items-center justify-center bg-panel-raised hover:bg-line border border-line rounded py-1.5 text-ink"
+      onClick={onClick}
+    >
+      {children}
     </button>
   );
 }

@@ -1,4 +1,4 @@
-import type { Mm, SheetTemplate } from './types';
+import type { ContentRotation, Mm, SheetTemplate } from './types';
 
 export interface Rect {
   x: Mm;
@@ -51,6 +51,42 @@ export function rotatedAabb(rect: Rect, degreesClockwise: number): Rect {
   const minX = Math.min(...xs);
   const minY = Math.min(...ys);
   return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
+}
+
+/**
+ * The label's own local canvas size for a given contentRotation — swapped
+ * for 90/270 so a design can be authored portrait inside a landscape die-cut
+ * (or vice versa). The template's labelWidth/labelHeight (the physical
+ * die-cut) never change; only this local authoring frame does.
+ */
+export function contentCanvasSize(template: SheetTemplate, contentRotation: ContentRotation): { width: Mm; height: Mm } {
+  return contentRotation === 90 || contentRotation === 270
+    ? { width: template.labelHeight, height: template.labelWidth }
+    : { width: template.labelWidth, height: template.labelHeight };
+}
+
+export interface SlotPlacement {
+  documentSize: { width: Mm; height: Mm };
+  contentRotation: ContentRotation;
+  /** The slot's rect in sheet space — the physical die-cut, at its true (unswapped) template dimensions. */
+  slotRect: Rect;
+}
+
+/**
+ * Maps a point from the label's own local/document space into sheet space:
+ * rotates the whole label about its own canvas centre by contentRotation,
+ * then translates that centre onto the slot's centre. This is the "shared
+ * pre-rotated-point approach" every element (and the die-cut clip path)
+ * goes through when placed onto a sheet — never a renderer-native rotate
+ * operator. The one unavoidable exception is a text glyph's own visual
+ * orientation, which has no point-list representation to rotate; see
+ * TextShape / drawTextElement for how that composes with this transform.
+ */
+export function placeInSlot(local: Point, placement: SlotPlacement): Point {
+  const localCenter: Point = { x: placement.documentSize.width / 2, y: placement.documentSize.height / 2 };
+  const rotated = rotatePoint(local, localCenter, placement.contentRotation);
+  const slotCenter = boxCenter(placement.slotRect);
+  return { x: rotated.x - localCenter.x + slotCenter.x, y: rotated.y - localCenter.y + slotCenter.y };
 }
 
 /**
