@@ -15,13 +15,15 @@ import {
 import { setFillingColor, setStrokingColor } from 'pdf-lib';
 import type { Element, Mm } from '../../model/types';
 import type { Rect } from '../../model/geometry';
-import { boxCenter, lineEndpoints, rotatePoint } from '../../model/geometry';
-import { IDENTITY_PLACEMENT, type Placement } from '../placement';
+import { boxCenter, lineEndpoints } from '../../model/geometry';
+import { IDENTITY_PLACEMENT, withElementRotation, type Placement } from '../placement';
+import { DEFAULT_HRI_FONT_ID, DEFAULT_HRI_FONT_SIZE_PT, hriBandHeightMm } from '../../barcode/hri';
+import { layoutBarcode } from '../../barcode/layout';
 import { layoutText } from '../../text/layout';
 import { hexToRgb } from './color';
 import { buildEllipsePath } from './ellipsePath';
 import type { EmbeddedFonts } from './fonts';
-import { mapPath, pathToPdfPathOperators } from './path';
+import { mapPath, pathsToPdfPathOperators, pathToPdfPathOperators, polygonToPath } from './path';
 import { mmToPt, yFlip } from './units';
 import { buildRoundedRectPath } from './roundedRect';
 
@@ -66,6 +68,9 @@ export function drawElement(page: PDFPage, element: Element, pageHeightMm: Mm, p
       break;
     case 'text':
       if (fonts) drawTextElement(page, element, pageHeightMm, placement, fonts);
+      break;
+    case 'barcode':
+      drawBarcodeElement(page, element, pageHeightMm, placement, fonts);
       break;
   }
 }
@@ -153,13 +158,12 @@ function drawTextElement(page: PDFPage, element: Extract<Element, { type: 'text'
 
   const elementCenter = boxCenter(localRect);
   const totalAngle = (element.rotation + placement.extraRotationDeg) % 360;
+  const toSheet = withElementRotation(placement, elementCenter, element.rotation);
   const color = hexToRgb(element.color);
 
   for (const line of layout.lines) {
     for (const run of line.runs) {
-      const localAnchor = { x: localRect.x + run.x, y: localRect.y + line.baselineY };
-      const rotatedByElement = rotatePoint(localAnchor, elementCenter, element.rotation);
-      const sheetAnchor = placement.transform(rotatedByElement);
+      const sheetAnchor = toSheet({ x: localRect.x + run.x, y: localRect.y + line.baselineY });
       page.drawText(run.text, {
         x: mmToPt(sheetAnchor.x),
         y: yFlip(sheetAnchor.y, pageHeightMm),
@@ -169,6 +173,76 @@ function drawTextElement(page: PDFPage, element: Extract<Element, { type: 'text'
         opacity: element.opacity,
         rotate: degrees(-totalAngle),
       });
+    }
+  }
+}
+
+/**
+ * Bars (Code 128) and merged module polygons (QR) come out of
+ * `layoutBarcode` in local mm space, relative to the bars' own box — never
+ * rasterised (CLAUDE.md invariant 5). They go through the same
+ * point-transform pipeline as rect/ellipse; the optional HRI line is a
+ * normal text run through the text-layout module, drawn exactly like
+ * `drawTextElement`, not something bwip-js draws.
+ */
+function drawBarcodeElement(page: PDFPage, element: Extract<Element, { type: 'barcode' }>, pageHeightMm: Mm, placement: Placement, fonts?: EmbeddedFonts): void {
+  const localRect: Rect = { x: element.x, y: element.y, width: element.width, height: element.height };
+  const showHri = element.showText && element.symbology === 'code128';
+  const hriFontSizePt = element.hriFontSizePt ?? DEFAULT_HRI_FONT_SIZE_PT;
+  const hriHeight = showHri ? hriBandHeightMm(hriFontSizePt) : 0;
+  const barsRect: Rect = { x: localRect.x, y: localRect.y, width: localRect.width, height: Math.max(1, localRect.height - hriHeight) };
+
+  const geometry = layoutBarcode({
+    symbology: element.symbology,
+    value: element.value,
+    widthMm: barsRect.width,
+    heightMm: barsRect.height,
+    quietZoneModules: element.quietZoneModules,
+    errorCorrection: element.errorCorrection,
+  });
+
+  const elementCenter = boxCenter(localRect);
+  const toSheet = withElementRotation(placement, elementCenter, element.rotation);
+  const color = hexToRgb(element.color);
+
+  const ops: PDFOperator[] = [pushGraphicsState(), ...opacityOps(page, element.opacity), setFillingColor(color)];
+
+  for (const bar of geometry.bars) {
+    const abs: Rect = { x: bar.x + barsRect.x, y: bar.y + barsRect.y, width: bar.width, height: bar.height };
+    const path = mapPath(buildRoundedRectPath(abs, 0, 0), toSheet);
+    ops.push(...pathToPdfPathOperators(path, pageHeightMm), fill());
+  }
+  for (const batch of geometry.polygonBatches) {
+    const paths = batch.map((poly) => mapPath(polygonToPath(poly.map((p) => ({ x: p.x + barsRect.x, y: p.y + barsRect.y }))), toSheet));
+    ops.push(...pathsToPdfPathOperators(paths, pageHeightMm), fill());
+  }
+  ops.push(popGraphicsState());
+  page.pushOperators(...ops);
+
+  const embedded = showHri ? fonts?.get(element.hriFontId ?? DEFAULT_HRI_FONT_ID) : undefined;
+  if (embedded) {
+    const hriRect: Rect = { x: localRect.x, y: localRect.y + barsRect.height, width: localRect.width, height: hriHeight };
+    const layout = layoutText(
+      element.value,
+      { fontSizePt: hriFontSizePt, lineHeight: 1, letterSpacing: 0, align: 'center', verticalAlign: 'top', autoShrink: false },
+      hriRect.width,
+      hriRect.height,
+      embedded.layoutFont,
+    );
+    const totalAngle = (element.rotation + placement.extraRotationDeg) % 360;
+    for (const line of layout.lines) {
+      for (const run of line.runs) {
+        const sheetAnchor = toSheet({ x: hriRect.x + run.x, y: hriRect.y + line.baselineY });
+        page.drawText(run.text, {
+          x: mmToPt(sheetAnchor.x),
+          y: yFlip(sheetAnchor.y, pageHeightMm),
+          size: layout.fontSizePt,
+          font: embedded.pdfFont,
+          color,
+          opacity: element.opacity,
+          rotate: degrees(-totalAngle),
+        });
+      }
     }
   }
 }

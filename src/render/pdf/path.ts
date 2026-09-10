@@ -50,6 +50,11 @@ export function rotatePath(path: VectorPath, center: Point, degreesClockwise: nu
   return mapPath(path, (p) => rotatePoint(p, center, degreesClockwise));
 }
 
+/** Builds a closed polygon path from a flat point list — the shape `polygon()` calls out of bwip-js's drawing interface produce. */
+export function polygonToPath(points: Point[]): VectorPath {
+  return { start: points[0], segments: points.slice(1).map((p) => ({ line: p })) };
+}
+
 /** Renders a path as SVG `<path>` `d` attribute data, in mm user units. */
 export function pathToSvgPath(path: VectorPath): string {
   const parts: string[] = [`M ${fmt(path.start.x)} ${fmt(path.start.y)}`];
@@ -67,6 +72,11 @@ export function pathToSvgPath(path: VectorPath): string {
 
 function fmt(n: number): string {
   return Number(n.toFixed(6)).toString();
+}
+
+/** Combines several closed subpaths into one `d` string, filled together (e.g. bwipp's merged QR module polygons). */
+export function pathsToSvgPath(paths: VectorPath[]): string {
+  return paths.map(pathToSvgPath).join(' ');
 }
 
 /**
@@ -95,4 +105,9 @@ export function pathToPdfPathOperators(path: VectorPath, pageHeightMm: Mm): PDFO
 
   ops.push(closePath());
   return ops;
+}
+
+/** Combines several closed subpaths into one operator list, filled together (e.g. bwipp's merged QR module polygons). */
+export function pathsToPdfPathOperators(paths: VectorPath[], pageHeightMm: Mm): PDFOperator[] {
+  return paths.flatMap((p) => pathToPdfPathOperators(p, pageHeightMm));
 }

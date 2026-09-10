@@ -199,6 +199,57 @@ const ROTATED_DEMO_DOCUMENT: LabelDocument = {
   ],
 };
 
+/** M4 acceptance criteria (PLAN §8/§11): Code 128 with HRI text, and a QR code, both vector — never rasterised. */
+const BARCODE_DEMO_DOCUMENT: LabelDocument = {
+  schemaVersion: 1,
+  id: 'parity-demo-doc-barcodes',
+  name: 'Parity demo (barcodes)',
+  templateId: DEMO_TEMPLATE.id,
+  template: DEMO_TEMPLATE,
+  size: { width: 60, height: 40 },
+  contentRotation: 0,
+  background: { fill: '#ffffff' },
+  elements: [
+    {
+      id: 'bc1',
+      name: 'Code 128',
+      type: 'barcode',
+      x: 2,
+      y: 6,
+      width: 28,
+      height: 22,
+      rotation: 0,
+      locked: false,
+      visible: true,
+      opacity: 1,
+      symbology: 'code128',
+      value: '0123456789',
+      showText: true,
+      quietZoneModules: 10,
+      color: '#0f172a',
+    },
+    {
+      id: 'bc2',
+      name: 'QR',
+      type: 'barcode',
+      x: 33,
+      y: 6,
+      width: 25,
+      height: 25,
+      rotation: 15,
+      locked: false,
+      visible: true,
+      opacity: 1,
+      symbology: 'qr',
+      value: 'https://example.com/label/12345',
+      showText: false,
+      quietZoneModules: 4,
+      color: '#0f172a',
+      errorCorrection: 'M',
+    },
+  ],
+};
+
 const SLOT_RECT = { x: 0, y: 0, width: DEMO_TEMPLATE.labelWidth, height: DEMO_TEMPLATE.labelHeight };
 
 const DPI = 300;
@@ -298,11 +349,17 @@ function Scenario({ title, doc }: { title: string; doc: LabelDocument }) {
   useEffect(() => {
     (async () => {
       try {
-        // TextShape (DocumentRenderer.tsx) renders nothing for a text element
-        // until its font has loaded, then re-renders once it has. Warm the
-        // cache and wait a couple of frames for that re-render to commit
-        // before rasterizing the SVG, so the comparison isn't racing fetch().
-        const fontIds = [...new Set(doc.elements.filter((e) => e.type === 'text').map((e) => e.fontId))];
+        // TextShape / HriText (DocumentRenderer.tsx) render nothing until
+        // their font has loaded, then re-render once it has. Warm the cache
+        // and wait a couple of frames for that re-render to commit before
+        // rasterizing the SVG, so the comparison isn't racing fetch().
+        const fontIds = [
+          ...new Set(
+            doc.elements.flatMap((e) =>
+              e.type === 'text' ? [e.fontId] : e.type === 'barcode' && e.showText ? [e.hriFontId ?? 'jetbrains-mono-regular'] : [],
+            ),
+          ),
+        ];
         await Promise.all(fontIds.flatMap((id) => [loadFont(id), ensureFontFaceRegistered(id)]));
         await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
@@ -365,6 +422,7 @@ function ParityCheck() {
     <>
       <Scenario title="SVG vs PDF renderer parity — shapes, text" doc={DEMO_DOCUMENT} />
       <Scenario title="SVG vs PDF renderer parity — contentRotation: 90" doc={ROTATED_DEMO_DOCUMENT} />
+      <Scenario title="SVG vs PDF renderer parity — barcodes (Code 128 + QR)" doc={BARCODE_DEMO_DOCUMENT} />
     </>
   );
 }

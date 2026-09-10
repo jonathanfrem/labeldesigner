@@ -144,7 +144,30 @@ export interface TextElement extends BaseElement {
   minFontSizePt?: number;
 }
 
-export type Element = RectElement | EllipseElement | LineElement | TextElement;
+export type BarcodeSymbology = 'code128' | 'qr';
+export type QrErrorCorrection = 'L' | 'M' | 'Q' | 'H';
+
+export interface BarcodeElement extends BaseElement {
+  type: 'barcode';
+  symbology: BarcodeSymbology;
+  /** May contain tokens, same as text content — rendered literally until M7. */
+  value: string;
+  /** Human-readable interpretation text below the bars. Code 128 only. */
+  showText: boolean;
+  hriFontId?: string;
+  hriFontSizePt?: number;
+  /**
+   * Enforced up to a per-symbology minimum (10 for Code 128, 4 for QR) —
+   * the UI clamps and warns rather than letting a barcode ship without one.
+   * See src/barcode/layout.ts MIN_QUIET_ZONE_MODULES.
+   */
+  quietZoneModules: number;
+  color: string;
+  /** QR only. */
+  errorCorrection?: QrErrorCorrection;
+}
+
+export type Element = RectElement | EllipseElement | LineElement | TextElement | BarcodeElement;
 
 /**
  * Degrees clockwise the artwork is rotated *within* the template's die-cut —

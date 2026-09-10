@@ -1,19 +1,34 @@
 import { useState } from 'react';
 import type { Element } from '../../model/types';
-import { EllipseToolIcon, LineToolIcon, RectToolIcon, TextToolIcon } from '../../components/icons';
+import { BarcodeToolIcon, EllipseToolIcon, LineToolIcon, RectToolIcon, TextToolIcon } from '../../components/icons';
+import { MIN_QUIET_ZONE_MODULES } from '../../barcode/layout';
 import { newElementId } from '../../lib/id';
 import { DEFAULT_FONT_ID } from '../../text/fontCatalog';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
 
+const SIZE_BY_TYPE: Record<Element['type'], { width: number; height: number }> = {
+  rect: { width: 20, height: 15 },
+  ellipse: { width: 20, height: 15 },
+  line: { width: 30, height: 0 },
+  text: { width: 40, height: 12 },
+  barcode: { width: 35, height: 18 },
+};
+const NAME_BY_TYPE: Record<Element['type'], string> = {
+  rect: 'Rectangle',
+  ellipse: 'Ellipse',
+  line: 'Line',
+  text: 'Text',
+  barcode: 'Barcode',
+};
+
 function newShape(type: Element['type']): Element {
   const base = {
     id: newElementId(),
-    name: type === 'rect' ? 'Rectangle' : type === 'ellipse' ? 'Ellipse' : type === 'line' ? 'Line' : 'Text',
+    name: NAME_BY_TYPE[type],
     x: 10,
     y: 10,
-    width: type === 'line' ? 30 : type === 'text' ? 40 : 20,
-    height: type === 'line' ? 0 : type === 'text' ? 12 : 15,
+    ...SIZE_BY_TYPE[type],
     rotation: 0,
     locked: false,
     visible: true,
@@ -34,6 +49,17 @@ function newShape(type: Element['type']): Element {
       verticalAlign: 'top',
       color: '#1a1a1a',
       autoShrink: false,
+    };
+  }
+  if (type === 'barcode') {
+    return {
+      ...base,
+      type: 'barcode',
+      symbology: 'code128',
+      value: '0123456789',
+      showText: true,
+      quietZoneModules: MIN_QUIET_ZONE_MODULES.code128,
+      color: '#000000',
     };
   }
   return { ...base, type: 'line', stroke: '#334155', strokeWidth: 0.5 };
@@ -86,6 +112,9 @@ export function LayersPanel() {
         </ToolButton>
         <ToolButton title="Text" onClick={() => addAndSelect('text')}>
           <TextToolIcon />
+        </ToolButton>
+        <ToolButton title="Barcode" onClick={() => addAndSelect('barcode')}>
+          <BarcodeToolIcon />
         </ToolButton>
       </div>
       <div className="flex-1 overflow-y-auto">

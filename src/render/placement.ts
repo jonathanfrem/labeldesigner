@@ -1,6 +1,6 @@
 import type { LabelDocument } from '../model/types';
 import type { Point, Rect } from '../model/geometry';
-import { placeInSlot } from '../model/geometry';
+import { placeInSlot, rotatePoint } from '../model/geometry';
 
 export type PointTransform = (p: Point) => Point;
 
@@ -29,4 +29,14 @@ export function slotPlacement(document: LabelDocument, slotRect: Rect): Placemen
     transform: (p) => placeInSlot(p, { documentSize: document.size, contentRotation: document.contentRotation, slotRect }),
     extraRotationDeg: document.contentRotation,
   };
+}
+
+/**
+ * Combines an element's own rotation (about its own centre, in local space)
+ * with the placement's sheet transform, into one point function — the same
+ * composition every element type applies, whether it draws a path (rect,
+ * ellipse, barcode bars/modules) or positions a text glyph anchor.
+ */
+export function withElementRotation(placement: Placement, center: Point, elementRotationDeg: number): PointTransform {
+  return (p) => placement.transform(rotatePoint(p, center, elementRotationDeg));
 }

@@ -1,6 +1,7 @@
 import fontkitLib, { type Font } from '@pdf-lib/fontkit';
 import { PDFDocument, type PDFFont } from 'pdf-lib';
 import type { Element } from '../../model/types';
+import { DEFAULT_HRI_FONT_ID } from '../../barcode/hri';
 import { loadFontBytes } from '../../text/fontLoader';
 
 export interface EmbeddedFont {
@@ -18,7 +19,13 @@ export type EmbeddedFonts = Map<string, EmbeddedFont>;
  * `layoutText` measures with the exact bytes that got embedded.
  */
 export async function embedFontsForElements(doc: PDFDocument, elements: readonly Element[]): Promise<EmbeddedFonts> {
-  const fontIds = new Set(elements.filter((e): e is Extract<Element, { type: 'text' }> => e.type === 'text').map((e) => e.fontId));
+  const fontIds = new Set<string>();
+  for (const element of elements) {
+    if (element.type === 'text') fontIds.add(element.fontId);
+    else if (element.type === 'barcode' && element.showText && element.symbology === 'code128') {
+      fontIds.add(element.hriFontId ?? DEFAULT_HRI_FONT_ID);
+    }
+  }
   const result: EmbeddedFonts = new Map();
   if (fontIds.size === 0) return result;
 

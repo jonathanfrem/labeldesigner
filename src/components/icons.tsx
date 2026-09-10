@@ -42,6 +42,20 @@ export function TextToolIcon() {
   );
 }
 
+export function BarcodeToolIcon() {
+  return (
+    <Icon strokeWidth={0}>
+      <rect fill="currentColor" x={2.5} y={3} width={1.2} height={10} />
+      <rect fill="currentColor" x={4.5} y={3} width={0.6} height={10} />
+      <rect fill="currentColor" x={6} y={3} width={1.2} height={10} />
+      <rect fill="currentColor" x={8} y={3} width={0.6} height={10} />
+      <rect fill="currentColor" x={9.3} y={3} width={1.2} height={10} />
+      <rect fill="currentColor" x={11.3} y={3} width={0.6} height={10} />
+      <rect fill="currentColor" x={12.5} y={3} width={1} height={10} />
+    </Icon>
+  );
+}
+
 export function BoldIcon() {
   return (
     <Icon strokeWidth={0}>

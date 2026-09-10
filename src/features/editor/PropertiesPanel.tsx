@@ -1,5 +1,6 @@
-import type { Element } from '../../model/types';
+import type { BarcodeSymbology, Element, QrErrorCorrection } from '../../model/types';
 import { alignElements, distributeElements, type AlignMode, type DistributeMode } from '../../model/align';
+import { MIN_QUIET_ZONE_MODULES, MIN_SCANNABLE_MODULE_MM, layoutBarcode } from '../../barcode/layout';
 import { NumberField } from '../../components/NumberField';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
@@ -82,9 +83,9 @@ function SingleElementProperties({ element, onChange }: { element: Element; onCh
         </div>
       </section>
 
-      {element.type === 'text' ? (
-        <TextProperties element={element} onChange={onChange} />
-      ) : (
+      {element.type === 'text' && <TextProperties element={element} onChange={onChange} />}
+      {element.type === 'barcode' && <BarcodeProperties element={element} onChange={onChange} />}
+      {(element.type === 'rect' || element.type === 'ellipse' || element.type === 'line') && (
         <section>
           <SectionLabel>Appearance</SectionLabel>
           <div className="space-y-2">
@@ -168,6 +169,125 @@ function TextProperties({
           />
         )}
       </section>
+
+      <section>
+        <SectionLabel>Opacity</SectionLabel>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={element.opacity}
+          onChange={(e) => onChange({ opacity: Number(e.target.value) })}
+          className="w-full"
+        />
+      </section>
+    </>
+  );
+}
+
+const SYMBOLOGIES: { value: BarcodeSymbology; label: string }[] = [
+  { value: 'code128', label: 'Code 128' },
+  { value: 'qr', label: 'QR' },
+];
+const EC_LEVELS: QrErrorCorrection[] = ['L', 'M', 'Q', 'H'];
+
+function BarcodeProperties({
+  element,
+  onChange,
+}: {
+  element: Extract<Element, { type: 'barcode' }>;
+  onChange: (patch: Partial<Element>) => void;
+}) {
+  const minQuietZone = MIN_QUIET_ZONE_MODULES[element.symbology];
+  let geometry: ReturnType<typeof layoutBarcode> | null = null;
+  try {
+    geometry = layoutBarcode({
+      symbology: element.symbology,
+      value: element.value,
+      widthMm: element.width,
+      heightMm: element.height,
+      quietZoneModules: element.quietZoneModules,
+      errorCorrection: element.errorCorrection,
+    });
+  } catch {
+    geometry = null;
+  }
+
+  return (
+    <>
+      <section>
+        <SectionLabel>Symbology</SectionLabel>
+        <div className="grid grid-cols-2 gap-1 mb-2">
+          {SYMBOLOGIES.map((s) => (
+            <IconButton key={s.value} label={s.label} title={s.label} active={element.symbology === s.value} onClick={() => onChange({ symbology: s.value })} />
+          ))}
+        </div>
+        {element.symbology === 'qr' && (
+          <label className="block">
+            <span className="block text-ink-tertiary text-[11px] mb-1">Error correction</span>
+            <select
+              className="w-full bg-panel-raised border border-line rounded px-2 py-1.5 text-sm text-ink"
+              value={element.errorCorrection ?? 'M'}
+              onChange={(e) => onChange({ errorCorrection: e.target.value as QrErrorCorrection })}
+            >
+              {EC_LEVELS.map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {lvl}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </section>
+
+      <section>
+        <SectionLabel>Value</SectionLabel>
+        <textarea
+          className="w-full h-16 bg-panel-raised border border-line rounded px-2 py-1.5 text-sm text-ink resize-y focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent"
+          value={element.value}
+          onChange={(e) => onChange({ value: e.target.value })}
+        />
+      </section>
+
+      <section>
+        <SectionLabel>Appearance</SectionLabel>
+        <div className="space-y-2">
+          <ColorField label="Colour" value={element.color} onChange={(v) => onChange({ color: v ?? element.color })} />
+          <NumberField
+            label={`Quiet zone (modules, min ${minQuietZone})`}
+            value={element.quietZoneModules}
+            onChange={(v) => onChange({ quietZoneModules: Math.max(minQuietZone, v) })}
+          />
+          {geometry?.quietZoneClamped && (
+            <p className="text-warn text-[11px]">Clamped up to the {minQuietZone}-module minimum — a narrower quiet zone risks scan failures.</p>
+          )}
+          {geometry?.moduleTooNarrow && (
+            <p className="text-warn text-[11px]">
+              Module width is {geometry.moduleWidthMm.toFixed(3)}mm — below the ~{MIN_SCANNABLE_MODULE_MM}mm most laser/inkjet printers can
+              resolve reliably. Enlarge the barcode.
+            </p>
+          )}
+          {!geometry && <p className="text-danger text-[11px]">Couldn&rsquo;t encode this value for {element.symbology}.</p>}
+        </div>
+      </section>
+
+      {element.symbology === 'code128' && (
+        <section>
+          <SectionLabel>Human-readable text</SectionLabel>
+          <label className="flex items-center gap-1.5 text-ink-secondary text-sm mb-2">
+            <input type="checkbox" checked={element.showText} onChange={(e) => onChange({ showText: e.target.checked })} />
+            Show text below the bars
+          </label>
+          {element.showText && (
+            <NumberField
+              label="Size (pt)"
+              value={element.hriFontSizePt ?? 8}
+              onChange={(v) => onChange({ hriFontSizePt: Math.max(1, v) })}
+            />
+          )}
+        </section>
+      )}
 
       <section>
         <SectionLabel>Opacity</SectionLabel>

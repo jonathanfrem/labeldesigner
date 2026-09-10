@@ -1,12 +1,14 @@
 import type { Element, LabelDocument } from '../../model/types';
 import type { Point, Rect } from '../../model/geometry';
-import { boxCenter, lineEndpoints, rotatePoint } from '../../model/geometry';
-import { IDENTITY_PLACEMENT, type Placement } from '../placement';
+import { boxCenter, lineEndpoints } from '../../model/geometry';
+import { IDENTITY_PLACEMENT, withElementRotation, type Placement } from '../placement';
+import { DEFAULT_HRI_FONT_ID, DEFAULT_HRI_FONT_SIZE_PT, hriBandHeightMm } from '../../barcode/hri';
+import { layoutBarcode } from '../../barcode/layout';
 import { layoutText, ptToMm } from '../../text/layout';
 import { useFont } from '../../text/useFont';
 import { buildEllipsePath } from '../pdf/ellipsePath';
 import { buildLabelClipPath } from '../pdf/labelClip';
-import { mapPath, pathToSvgPath } from '../pdf/path';
+import { mapPath, pathToSvgPath, pathsToSvgPath, polygonToPath } from '../pdf/path';
 import { buildRoundedRectPath } from '../pdf/roundedRect';
 
 export interface DocumentRendererProps {
@@ -81,6 +83,8 @@ function ElementShape({ element, placement }: { element: Element; placement: Pla
     }
     case 'text':
       return <TextShape element={element} localRect={localRect} placement={placement} />;
+    case 'barcode':
+      return <BarcodeShape element={element} localRect={localRect} placement={placement} />;
   }
 }
 
@@ -122,14 +126,14 @@ function TextShape({ element, localRect, placement }: { element: Extract<Element
   const elementCenter = boxCenter(localRect);
   const fontSizeMm = ptToMm(layout.fontSizePt);
   const totalAngle = (element.rotation + placement.extraRotationDeg) % 360;
+  const toSheet = withElementRotation(placement, elementCenter, element.rotation);
 
   return (
     <g opacity={element.opacity}>
       {layout.lines.map((line, li) =>
         line.runs.map((run, ri) => {
           const localAnchor: Point = { x: localRect.x + run.x, y: localRect.y + line.baselineY };
-          const rotatedByElement = rotatePoint(localAnchor, elementCenter, element.rotation);
-          const sheetAnchor = placement.transform(rotatedByElement);
+          const sheetAnchor = toSheet(localAnchor);
           return (
             <text
               key={`${li}-${ri}`}
@@ -146,5 +150,111 @@ function TextShape({ element, localRect, placement }: { element: Extract<Element
         }),
       )}
     </g>
+  );
+}
+
+/**
+ * Bars (Code 128) and merged module polygons (QR) come out of
+ * `layoutBarcode` in local mm space, relative to the bars' own box — never
+ * rasterised (CLAUDE.md invariant 5). They go through the exact same
+ * point-transform pipeline as rect/ellipse (`buildRoundedRectPath` /
+ * `polygonToPath` + a point map), and the optional HRI line is a normal
+ * text run through the same text-layout module every other TextElement
+ * uses, not something bwip-js draws.
+ */
+function BarcodeShape({ element, localRect, placement }: { element: Extract<Element, { type: 'barcode' }>; localRect: Rect; placement: Placement }) {
+  const showHri = element.showText && element.symbology === 'code128';
+  const hriFontSizePt = element.hriFontSizePt ?? DEFAULT_HRI_FONT_SIZE_PT;
+  const hriHeight = showHri ? hriBandHeightMm(hriFontSizePt) : 0;
+  const barsRect: Rect = { x: localRect.x, y: localRect.y, width: localRect.width, height: Math.max(1, localRect.height - hriHeight) };
+
+  const geometry = layoutBarcode({
+    symbology: element.symbology,
+    value: element.value,
+    widthMm: barsRect.width,
+    heightMm: barsRect.height,
+    quietZoneModules: element.quietZoneModules,
+    errorCorrection: element.errorCorrection,
+  });
+
+  const elementCenter = boxCenter(localRect);
+  const toSheet = withElementRotation(placement, elementCenter, element.rotation);
+  const totalAngle = (element.rotation + placement.extraRotationDeg) % 360;
+
+  return (
+    <g opacity={element.opacity} fill={element.color}>
+      {geometry.bars.map((bar, i) => {
+        const abs: Rect = { x: bar.x + barsRect.x, y: bar.y + barsRect.y, width: bar.width, height: bar.height };
+        return <path key={`b${i}`} d={pathToSvgPath(mapPath(buildRoundedRectPath(abs, 0, 0), toSheet))} />;
+      })}
+      {geometry.polygonBatches.map((batch, i) => {
+        const paths = batch.map((poly) => mapPath(polygonToPath(poly.map((p) => ({ x: p.x + barsRect.x, y: p.y + barsRect.y }))), toSheet));
+        return <path key={`p${i}`} d={pathsToSvgPath(paths)} />;
+      })}
+      {showHri && (
+        <HriText
+          value={element.value}
+          fontId={element.hriFontId ?? DEFAULT_HRI_FONT_ID}
+          fontSizePt={hriFontSizePt}
+          rect={{ x: localRect.x, y: localRect.y + barsRect.height, width: localRect.width, height: hriHeight }}
+          color={element.color}
+          toSheet={toSheet}
+          rotationDeg={totalAngle}
+        />
+      )}
+    </g>
+  );
+}
+
+function HriText({
+  value,
+  fontId,
+  fontSizePt,
+  rect,
+  color,
+  toSheet,
+  rotationDeg,
+}: {
+  value: string;
+  fontId: string;
+  fontSizePt: number;
+  rect: Rect;
+  color: string;
+  toSheet: (p: Point) => Point;
+  rotationDeg: number;
+}) {
+  const font = useFont(fontId);
+  if (!font) return null;
+
+  const layout = layoutText(
+    value,
+    { fontSizePt, lineHeight: 1, letterSpacing: 0, align: 'center', verticalAlign: 'top', autoShrink: false },
+    rect.width,
+    rect.height,
+    font,
+  );
+  const fontSizeMm = ptToMm(layout.fontSizePt);
+
+  return (
+    <>
+      {layout.lines.map((line, li) =>
+        line.runs.map((run, ri) => {
+          const anchor = toSheet({ x: rect.x + run.x, y: rect.y + line.baselineY });
+          return (
+            <text
+              key={`${li}-${ri}`}
+              x={anchor.x}
+              y={anchor.y}
+              transform={`rotate(${rotationDeg} ${anchor.x} ${anchor.y})`}
+              fontFamily={fontId}
+              fontSize={fontSizeMm}
+              fill={color}
+            >
+              {run.text}
+            </text>
+          );
+        }),
+      )}
+    </>
   );
 }
