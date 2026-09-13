@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import type { LabelDocument, SheetTemplate } from '../src/model/types';
 import { drawLabelDocument } from '../src/render/pdf/document';
 import { embedFontsForElements } from '../src/render/pdf/fonts';
+import { embedImagesForElements } from '../src/render/pdf/images';
 import { mmToPt } from '../src/render/pdf/units';
 import { DocumentRenderer } from '../src/render/svg/DocumentRenderer';
 import { slotPlacement } from '../src/render/placement';
@@ -250,6 +251,80 @@ const BARCODE_DEMO_DOCUMENT: LabelDocument = {
   ],
 };
 
+/** A small synthetic PNG (quadrants + a diagonal), generated at load time so this script needs no binary fixtures. */
+function makeTestImageDataUrl(): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = 200;
+  canvas.height = 120;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(0, 0, 100, 60);
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillRect(100, 0, 100, 60);
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(0, 60, 100, 60);
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(100, 60, 100, 60);
+  ctx.strokeStyle = '#111827';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(200, 120);
+  ctx.stroke();
+  return canvas.toDataURL('image/png');
+}
+
+const IMAGE_ASSET_ID = 'parity-demo-image';
+
+/** M5 acceptance criteria (PLAN §11): a cropped, rotated image prints at the same position and scale as shown. */
+const IMAGE_DEMO_DOCUMENT: LabelDocument = {
+  schemaVersion: 1,
+  id: 'parity-demo-doc-image',
+  name: 'Parity demo (image)',
+  templateId: DEMO_TEMPLATE.id,
+  template: DEMO_TEMPLATE,
+  size: { width: 60, height: 40 },
+  contentRotation: 0,
+  background: { fill: '#ffffff' },
+  assets: {
+    [IMAGE_ASSET_ID]: { id: IMAGE_ASSET_ID, mime: 'image/png', dataUrl: makeTestImageDataUrl(), naturalWidthPx: 200, naturalHeightPx: 120 },
+  },
+  elements: [
+    {
+      id: 'img1',
+      name: 'Cropped rotated image (cover)',
+      type: 'image',
+      x: 6,
+      y: 6,
+      width: 26,
+      height: 20,
+      rotation: -18,
+      locked: false,
+      visible: true,
+      opacity: 1,
+      assetId: IMAGE_ASSET_ID,
+      crop: { x: 0.15, y: 0.1, w: 0.7, h: 0.8 },
+      fit: 'cover',
+    },
+    {
+      id: 'img2',
+      name: 'Contain image',
+      type: 'image',
+      x: 34,
+      y: 4,
+      width: 22,
+      height: 30,
+      rotation: 8,
+      locked: false,
+      visible: true,
+      opacity: 0.85,
+      assetId: IMAGE_ASSET_ID,
+      crop: { x: 0, y: 0, w: 1, h: 1 },
+      fit: 'contain',
+    },
+  ],
+};
+
 const SLOT_RECT = { x: 0, y: 0, width: DEMO_TEMPLATE.labelWidth, height: DEMO_TEMPLATE.labelHeight };
 
 const DPI = 300;
@@ -287,7 +362,8 @@ async function rasterizePdf(doc: LabelDocument): Promise<HTMLCanvasElement> {
   const pageHeightPt = mmToPt(DEMO_TEMPLATE.labelHeight);
   const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
   const fonts = await embedFontsForElements(pdfDoc, doc.elements);
-  drawLabelDocument(page, doc, SLOT_RECT, DEMO_TEMPLATE.labelHeight, fonts);
+  const images = await embedImagesForElements(pdfDoc, doc.elements, doc.assets);
+  drawLabelDocument(page, doc, SLOT_RECT, DEMO_TEMPLATE.labelHeight, fonts, images);
   const bytes = await pdfDoc.save({ useObjectStreams: false });
 
   const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
@@ -423,6 +499,7 @@ function ParityCheck() {
       <Scenario title="SVG vs PDF renderer parity — shapes, text" doc={DEMO_DOCUMENT} />
       <Scenario title="SVG vs PDF renderer parity — contentRotation: 90" doc={ROTATED_DEMO_DOCUMENT} />
       <Scenario title="SVG vs PDF renderer parity — barcodes (Code 128 + QR)" doc={BARCODE_DEMO_DOCUMENT} />
+      <Scenario title="SVG vs PDF renderer parity — images (cropped, rotated)" doc={IMAGE_DEMO_DOCUMENT} />
     </>
   );
 }

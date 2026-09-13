@@ -9,3 +9,7 @@ export function newTemplateId(): string {
 export function newElementId(): string {
   return `el-${randomToken()}`;
 }
+
+export function newAssetId(): string {
+  return `asset-${randomToken()}`;
+}

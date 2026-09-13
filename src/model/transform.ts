@@ -24,7 +24,7 @@ const HANDLE_SIDES: Record<HandleId, HandleSides> = {
 };
 
 /** A line element has no useful vertical extent — its top/bottom handles would do nothing. */
-export function handlesForElementType(type: 'rect' | 'ellipse' | 'line' | 'text' | 'barcode'): HandleId[] {
+export function handlesForElementType(type: 'rect' | 'ellipse' | 'line' | 'text' | 'barcode' | 'image'): HandleId[] {
   return type === 'line' ? ['w', 'e'] : ALL_HANDLES;
 }
 

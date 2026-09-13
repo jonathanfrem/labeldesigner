@@ -7,6 +7,7 @@ import { slotPlacement } from '../placement';
 import { hexToRgb } from './color';
 import { drawElement } from './elements';
 import { embedFontsForElements, type EmbeddedFonts } from './fonts';
+import { embedImagesForElements, type EmbeddedImages } from './images';
 import { buildLabelClipPath } from './labelClip';
 import { mapPath, pathToPdfPathOperators } from './path';
 import { applyProfileToRect } from './sheet';
@@ -23,7 +24,14 @@ import { applyProfileToRect } from './sheet';
  * `embedFontsForElements`) — embedding is async and per-document, not
  * per-slot, so callers do it once upfront.
  */
-export function drawLabelDocument(page: PDFPage, doc: LabelDocument, slotRect: Rect, pageHeightMm: number, fonts: EmbeddedFonts = new Map()): void {
+export function drawLabelDocument(
+  page: PDFPage,
+  doc: LabelDocument,
+  slotRect: Rect,
+  pageHeightMm: number,
+  fonts: EmbeddedFonts = new Map(),
+  images: EmbeddedImages = new Map(),
+): void {
   const placement = slotPlacement(doc, slotRect);
   const localRect: Rect = { x: 0, y: 0, width: doc.size.width, height: doc.size.height };
   const clipPath = mapPath(buildLabelClipPath(doc.template, localRect), placement.transform);
@@ -36,7 +44,7 @@ export function drawLabelDocument(page: PDFPage, doc: LabelDocument, slotRect: R
   }
 
   for (const element of doc.elements) {
-    drawElement(page, element, pageHeightMm, placement, fonts);
+    drawElement(page, element, pageHeightMm, placement, fonts, images);
   }
 
   page.pushOperators(popGraphicsState());
@@ -49,8 +57,11 @@ export async function drawDocumentSheet(
   pageHeightMm: number,
   profile: PrinterProfile = IDENTITY_PRINTER_PROFILE,
 ): Promise<void> {
-  const fonts = await embedFontsForElements(page.doc, doc.elements);
+  const [fonts, images] = await Promise.all([
+    embedFontsForElements(page.doc, doc.elements),
+    embedImagesForElements(page.doc, doc.elements, doc.assets),
+  ]);
   for (const slot of allSlots(doc.template)) {
-    drawLabelDocument(page, doc, applyProfileToRect(slot, profile), pageHeightMm, fonts);
+    drawLabelDocument(page, doc, applyProfileToRect(slot, profile), pageHeightMm, fonts, images);
   }
 }

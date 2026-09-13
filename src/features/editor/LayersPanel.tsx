@@ -1,20 +1,23 @@
-import { useState } from 'react';
-import type { Element } from '../../model/types';
-import { BarcodeToolIcon, EllipseToolIcon, LineToolIcon, RectToolIcon, TextToolIcon } from '../../components/icons';
+import { useRef, useState } from 'react';
+import type { Asset, Element } from '../../model/types';
+import { BarcodeToolIcon, EllipseToolIcon, ImageToolIcon, LineToolIcon, RectToolIcon, TextToolIcon } from '../../components/icons';
 import { MIN_QUIET_ZONE_MODULES } from '../../barcode/layout';
+import { createAssetFromFile } from '../../image/upload';
 import { newElementId } from '../../lib/id';
 import { DEFAULT_FONT_ID } from '../../text/fontCatalog';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
 
-const SIZE_BY_TYPE: Record<Element['type'], { width: number; height: number }> = {
+type ShapeType = Exclude<Element['type'], 'image'>;
+
+const SIZE_BY_TYPE: Record<ShapeType, { width: number; height: number }> = {
   rect: { width: 20, height: 15 },
   ellipse: { width: 20, height: 15 },
   line: { width: 30, height: 0 },
   text: { width: 40, height: 12 },
   barcode: { width: 35, height: 18 },
 };
-const NAME_BY_TYPE: Record<Element['type'], string> = {
+const NAME_BY_TYPE: Record<ShapeType, string> = {
   rect: 'Rectangle',
   ellipse: 'Ellipse',
   line: 'Line',
@@ -22,7 +25,7 @@ const NAME_BY_TYPE: Record<Element['type'], string> = {
   barcode: 'Barcode',
 };
 
-function newShape(type: Element['type']): Element {
+function newShape(type: ShapeType): Element {
   const base = {
     id: newElementId(),
     name: NAME_BY_TYPE[type],
@@ -65,9 +68,32 @@ function newShape(type: Element['type']): Element {
   return { ...base, type: 'line', stroke: '#334155', strokeWidth: 0.5 };
 }
 
+const DEFAULT_IMAGE_WIDTH_MM = 30;
+
+function newImageElement(asset: Asset): Element {
+  const aspect = asset.naturalWidthPx / asset.naturalHeightPx || 1;
+  return {
+    id: newElementId(),
+    name: 'Image',
+    x: 10,
+    y: 10,
+    width: DEFAULT_IMAGE_WIDTH_MM,
+    height: DEFAULT_IMAGE_WIDTH_MM / aspect,
+    rotation: 0,
+    locked: false,
+    visible: true,
+    opacity: 1,
+    type: 'image',
+    assetId: asset.id,
+    crop: { x: 0, y: 0, w: 1, h: 1 },
+    fit: 'contain',
+  };
+}
+
 export function LayersPanel() {
   const elements = useDocumentStore((s) => s.document.elements);
   const addElement = useDocumentStore((s) => s.addElement);
+  const addImage = useDocumentStore((s) => s.addImage);
   const updateElement = useDocumentStore((s) => s.updateElement);
   const removeElements = useDocumentStore((s) => s.removeElements);
   const setElementOrder = useDocumentStore((s) => s.setElementOrder);
@@ -77,11 +103,28 @@ export function LayersPanel() {
   const toggleSelect = useUiStore((s) => s.toggleSelect);
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function addAndSelect(type: Element['type']) {
+  function addAndSelect(type: ShapeType) {
     const el = newShape(type);
     addElement(el);
     select([el.id]);
+  }
+
+  async function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const { asset, warning } = await createAssetFromFile(file);
+      setUploadMessage(warning ?? null);
+      const el = newImageElement(asset);
+      addImage(asset, el);
+      select([el.id]);
+    } catch (err) {
+      setUploadMessage(err instanceof Error ? err.message : 'Failed to load image.');
+    }
   }
 
   // Layer list shows top-of-stack first; the underlying array is bottom-to-top.
@@ -116,7 +159,19 @@ export function LayersPanel() {
         <ToolButton title="Barcode" onClick={() => addAndSelect('barcode')}>
           <BarcodeToolIcon />
         </ToolButton>
+        <ToolButton title="Image" onClick={() => fileInputRef.current?.click()}>
+          <ImageToolIcon />
+        </ToolButton>
+        <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml" className="hidden" onChange={handleFileChosen} />
       </div>
+      {uploadMessage && (
+        <div className="flex items-start gap-2 px-2 py-1.5 text-[11px] text-warn bg-warn/10 border-b border-line">
+          <span className="flex-1">{uploadMessage}</span>
+          <button className="text-ink-tertiary hover:text-ink" onClick={() => setUploadMessage(null)}>
+            ×
+          </button>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto">
         {topDown.length === 0 && <p className="p-3 text-xs text-ink-tertiary">No elements yet — add a shape above.</p>}
         {topDown.map((el) => {

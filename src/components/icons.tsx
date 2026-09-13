@@ -56,6 +56,16 @@ export function BarcodeToolIcon() {
   );
 }
 
+export function ImageToolIcon() {
+  return (
+    <Icon>
+      <rect x={2} y={3} width={12} height={10} rx={0.5} />
+      <circle cx={5.5} cy={6.5} r={1.1} fill="currentColor" stroke="none" />
+      <path d="M2.5 11.5 6 8l2 2 2.5-3 3 4.2" />
+    </Icon>
+  );
+}
+
 export function BoldIcon() {
   return (
     <Icon strokeWidth={0}>

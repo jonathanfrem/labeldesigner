@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
-import type { ContentRotation, Element, LabelDocument, SheetTemplate } from '../model/types';
+import type { Asset, ContentRotation, Element, LabelDocument, SheetTemplate } from '../model/types';
 import { contentCanvasSize } from '../model/geometry';
 import { newElementId } from '../lib/id';
 
@@ -15,6 +15,7 @@ function blankDocument(template: SheetTemplate, contentRotation: ContentRotation
     size: contentCanvasSize(template, contentRotation),
     contentRotation,
     elements: [],
+    assets: {},
   };
 }
 
@@ -40,6 +41,8 @@ interface DocumentState {
   loadTemplate: (template: SheetTemplate) => void;
   addElement: (element: Element) => void;
   addElements: (elements: Element[]) => void;
+  /** Adds the asset and its placing element in one step, so undo removes both together. */
+  addImage: (asset: Asset, element: Element) => void;
   updateElement: (id: string, patch: Partial<Element>) => void;
   updateElements: (patches: ReadonlyArray<{ id: string; patch: Partial<Element> }>) => void;
   removeElements: (ids: string[]) => void;
@@ -75,6 +78,13 @@ export const useDocumentStore = create<DocumentState>()(
       addElements: (newElements) => {
         set((state) => {
           state.document.elements.push(...newElements);
+        });
+      },
+
+      addImage: (asset, element) => {
+        set((state) => {
+          state.document.assets[asset.id] = asset;
+          state.document.elements.push(element);
         });
       },
 

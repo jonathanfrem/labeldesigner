@@ -1,12 +1,14 @@
-import type { BarcodeSymbology, Element, QrErrorCorrection } from '../../model/types';
+import type { Asset, BarcodeSymbology, Element, ImageFit, QrErrorCorrection } from '../../model/types';
 import { alignElements, distributeElements, type AlignMode, type DistributeMode } from '../../model/align';
 import { MIN_QUIET_ZONE_MODULES, MIN_SCANNABLE_MODULE_MM, layoutBarcode } from '../../barcode/layout';
+import { MIN_EFFECTIVE_DPI, layoutImage } from '../../image/layout';
 import { NumberField } from '../../components/NumberField';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
 
 export function PropertiesPanel() {
   const elements = useDocumentStore((s) => s.document.elements);
+  const assets = useDocumentStore((s) => s.document.assets);
   const updateElement = useDocumentStore((s) => s.updateElement);
   const updateElements = useDocumentStore((s) => s.updateElements);
   const selectedIds = useUiStore((s) => s.selectedIds);
@@ -47,7 +49,9 @@ export function PropertiesPanel() {
         </section>
       )}
 
-      {selected.length === 1 && <SingleElementProperties element={selected[0]} onChange={(patch) => updateElement(selected[0].id, patch)} />}
+      {selected.length === 1 && (
+        <SingleElementProperties element={selected[0]} assets={assets} onChange={(patch) => updateElement(selected[0].id, patch)} />
+      )}
 
       {selected.length > 1 && (
         <section>
@@ -67,7 +71,15 @@ export function PropertiesPanel() {
   );
 }
 
-function SingleElementProperties({ element, onChange }: { element: Element; onChange: (patch: Partial<Element>) => void }) {
+function SingleElementProperties({
+  element,
+  assets,
+  onChange,
+}: {
+  element: Element;
+  assets: Record<string, Asset>;
+  onChange: (patch: Partial<Element>) => void;
+}) {
   return (
     <>
       <section>
@@ -85,6 +97,7 @@ function SingleElementProperties({ element, onChange }: { element: Element; onCh
 
       {element.type === 'text' && <TextProperties element={element} onChange={onChange} />}
       {element.type === 'barcode' && <BarcodeProperties element={element} onChange={onChange} />}
+      {element.type === 'image' && <ImageProperties element={element} asset={assets[element.assetId]} onChange={onChange} />}
       {(element.type === 'rect' || element.type === 'ellipse' || element.type === 'line') && (
         <section>
           <SectionLabel>Appearance</SectionLabel>
@@ -288,6 +301,94 @@ function BarcodeProperties({
           )}
         </section>
       )}
+
+      <section>
+        <SectionLabel>Opacity</SectionLabel>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={element.opacity}
+          onChange={(e) => onChange({ opacity: Number(e.target.value) })}
+          className="w-full"
+        />
+      </section>
+    </>
+  );
+}
+
+const FIT_MODES: { value: ImageFit; label: string }[] = [
+  { value: 'contain', label: 'Contain' },
+  { value: 'cover', label: 'Cover' },
+  { value: 'fill', label: 'Fill' },
+];
+
+/** Crop is expressed on screen as 0-100% of the source image, converted to/from the model's 0..1 fractions. */
+function ImageProperties({
+  element,
+  asset,
+  onChange,
+}: {
+  element: Extract<Element, { type: 'image' }>;
+  asset: Asset | undefined;
+  onChange: (patch: Partial<Element>) => void;
+}) {
+  if (!asset) {
+    return (
+      <section>
+        <SectionLabel>Image</SectionLabel>
+        <p className="text-danger text-[11px]">This image&rsquo;s asset is missing from the document.</p>
+      </section>
+    );
+  }
+
+  function setCrop(patch: Partial<typeof element.crop>) {
+    const crop = { ...element.crop, ...patch };
+    crop.x = Math.min(Math.max(0, crop.x), 1 - 0.01);
+    crop.y = Math.min(Math.max(0, crop.y), 1 - 0.01);
+    crop.w = Math.min(Math.max(0.01, crop.w), 1 - crop.x);
+    crop.h = Math.min(Math.max(0.01, crop.h), 1 - crop.y);
+    onChange({ crop });
+  }
+
+  const placement = layoutImage({
+    naturalWidthPx: asset.naturalWidthPx,
+    naturalHeightPx: asset.naturalHeightPx,
+    crop: element.crop,
+    fit: element.fit,
+    boxWidthMm: element.width,
+    boxHeightMm: element.height,
+  });
+
+  return (
+    <>
+      <section>
+        <SectionLabel>Fit</SectionLabel>
+        <div className="grid grid-cols-3 gap-1">
+          {FIT_MODES.map((f) => (
+            <IconButton key={f.value} label={f.label} title={f.label} active={element.fit === f.value} onClick={() => onChange({ fit: f.value })} />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <SectionLabel>Crop (% of source)</SectionLabel>
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label="Left" value={Math.round(element.crop.x * 100)} onChange={(v) => setCrop({ x: v / 100 })} />
+          <NumberField label="Top" value={Math.round(element.crop.y * 100)} onChange={(v) => setCrop({ y: v / 100 })} />
+          <NumberField label="Width" value={Math.round(element.crop.w * 100)} onChange={(v) => setCrop({ w: v / 100 })} />
+          <NumberField label="Height" value={Math.round(element.crop.h * 100)} onChange={(v) => setCrop({ h: v / 100 })} />
+        </div>
+      </section>
+
+      <section>
+        <SectionLabel>Resolution</SectionLabel>
+        <p className={`text-[11px] ${placement.dpiTooLow ? 'text-warn' : 'text-ink-tertiary'}`}>
+          {Math.round(placement.effectiveDpi)} dpi at this size
+          {placement.dpiTooLow && ` — below ~${MIN_EFFECTIVE_DPI}dpi, will look soft when printed. Shrink the image or crop less.`}
+        </p>
+      </section>
 
       <section>
         <SectionLabel>Opacity</SectionLabel>

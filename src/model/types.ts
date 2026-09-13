@@ -167,7 +167,43 @@ export interface BarcodeElement extends BaseElement {
   errorCorrection?: QrErrorCorrection;
 }
 
-export type Element = RectElement | EllipseElement | LineElement | TextElement | BarcodeElement;
+/**
+ * `x`/`y`/`w`/`h` are 0..1 of the source image's natural pixel dimensions —
+ * resolution-independent, so the same crop survives re-uploading a
+ * higher-res version of the same asset.
+ */
+export interface ImageCrop {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export type ImageFit = 'fill' | 'contain' | 'cover';
+
+export interface ImageElement extends BaseElement {
+  type: 'image';
+  assetId: string;
+  crop: ImageCrop;
+  fit: ImageFit;
+}
+
+/**
+ * An uploaded image, stored inline so a saved `.lbl.json` is self-contained
+ * (PLAN §4.1). SVG uploads are rasterised once at upload time (see
+ * src/image/upload.ts) — pdf-lib has no vector SVG embedding, and keeping
+ * every asset a plain raster means the fit/crop/DPI math and both renderers
+ * only ever deal with one kind of image.
+ */
+export interface Asset {
+  id: string;
+  mime: 'image/png' | 'image/jpeg';
+  dataUrl: string;
+  naturalWidthPx: number;
+  naturalHeightPx: number;
+}
+
+export type Element = RectElement | EllipseElement | LineElement | TextElement | BarcodeElement | ImageElement;
 
 /**
  * Degrees clockwise the artwork is rotated *within* the template's die-cut —
@@ -192,4 +228,5 @@ export interface LabelDocument {
   /** Clipped to the template's die-cut shape, same as every element. */
   background?: { fill?: string };
   elements: Element[];
+  assets: Record<string, Asset>;
 }

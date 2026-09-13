@@ -1,9 +1,10 @@
-import type { Element, LabelDocument } from '../../model/types';
+import type { Asset, Element, LabelDocument } from '../../model/types';
 import type { Point, Rect } from '../../model/geometry';
 import { boxCenter, lineEndpoints } from '../../model/geometry';
 import { IDENTITY_PLACEMENT, withElementRotation, type Placement } from '../placement';
 import { DEFAULT_HRI_FONT_ID, DEFAULT_HRI_FONT_SIZE_PT, hriBandHeightMm } from '../../barcode/hri';
 import { layoutBarcode } from '../../barcode/layout';
+import { layoutImage } from '../../image/layout';
 import { layoutText, ptToMm } from '../../text/layout';
 import { useFont } from '../../text/useFont';
 import { buildEllipsePath } from '../pdf/ellipsePath';
@@ -38,14 +39,14 @@ export function DocumentRenderer({ document, clipId, placement = IDENTITY_PLACEM
       <g clipPath={`url(#${clipId})`}>
         {document.background?.fill && <path d={clipPathData} fill={document.background.fill} />}
         {document.elements.map((element) => (
-          <ElementShape key={element.id} element={element} placement={placement} />
+          <ElementShape key={element.id} element={element} placement={placement} assets={document.assets} />
         ))}
       </g>
     </>
   );
 }
 
-function ElementShape({ element, placement }: { element: Element; placement: Placement }) {
+function ElementShape({ element, placement, assets }: { element: Element; placement: Placement; assets: Record<string, Asset> }) {
   if (!element.visible) return null;
   const localRect: Rect = { x: element.x, y: element.y, width: element.width, height: element.height };
   const { transform } = placement;
@@ -85,6 +86,8 @@ function ElementShape({ element, placement }: { element: Element; placement: Pla
       return <TextShape element={element} localRect={localRect} placement={placement} />;
     case 'barcode':
       return <BarcodeShape element={element} localRect={localRect} placement={placement} />;
+    case 'image':
+      return <ImageShape element={element} localRect={localRect} placement={placement} asset={assets[element.assetId]} />;
   }
 }
 
@@ -203,6 +206,75 @@ function BarcodeShape({ element, localRect, placement }: { element: Extract<Elem
         />
       )}
     </g>
+  );
+}
+
+/**
+ * The one element type that's genuinely raster (CLAUDE.md invariant 5 is
+ * about barcodes, not images — PLAN §M5 always described images as
+ * embedded bitmaps). Crop and fit are pure geometry (`layoutImage`,
+ * identical math on both renderers): the full uncropped bitmap is drawn at
+ * a rect that may extend past the element box, and a clip path — built and
+ * placed exactly like a rect element's — hides everything outside it.
+ * Rotation has no point-list representation to give a bitmap, so like text
+ * it's the one unavoidable renderer-native rotate, around the image's own
+ * already-placed top-left corner.
+ */
+function ImageShape({
+  element,
+  localRect,
+  placement,
+  asset,
+}: {
+  element: Extract<Element, { type: 'image' }>;
+  localRect: Rect;
+  placement: Placement;
+  asset: Asset | undefined;
+}) {
+  if (!asset) return null;
+
+  const { fullImageRect } = layoutImage({
+    naturalWidthPx: asset.naturalWidthPx,
+    naturalHeightPx: asset.naturalHeightPx,
+    crop: element.crop,
+    fit: element.fit,
+    boxWidthMm: localRect.width,
+    boxHeightMm: localRect.height,
+  });
+  const absImageRect: Rect = {
+    x: fullImageRect.x + localRect.x,
+    y: fullImageRect.y + localRect.y,
+    width: fullImageRect.width,
+    height: fullImageRect.height,
+  };
+
+  const elementCenter = boxCenter(localRect);
+  const toSheet = withElementRotation(placement, elementCenter, element.rotation);
+  const totalAngle = (element.rotation + placement.extraRotationDeg) % 360;
+  const topLeft = toSheet({ x: absImageRect.x, y: absImageRect.y });
+
+  const clipId = `img-clip-${element.id}`;
+  const clipPath = pathToSvgPath(mapPath(buildRoundedRectPath(localRect, 0, element.rotation), placement.transform));
+
+  return (
+    <>
+      <defs>
+        <clipPath id={clipId}>
+          <path d={clipPath} />
+        </clipPath>
+      </defs>
+      <image
+        href={asset.dataUrl}
+        x={topLeft.x}
+        y={topLeft.y}
+        width={absImageRect.width}
+        height={absImageRect.height}
+        transform={`rotate(${totalAngle} ${topLeft.x} ${topLeft.y})`}
+        opacity={element.opacity}
+        clipPath={`url(#${clipId})`}
+        preserveAspectRatio="none"
+      />
+    </>
   );
 }
 

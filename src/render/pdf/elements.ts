@@ -1,4 +1,6 @@
 import {
+  clip,
+  endPath,
   fill,
   fillAndStroke,
   moveTo,
@@ -19,10 +21,12 @@ import { boxCenter, lineEndpoints } from '../../model/geometry';
 import { IDENTITY_PLACEMENT, withElementRotation, type Placement } from '../placement';
 import { DEFAULT_HRI_FONT_ID, DEFAULT_HRI_FONT_SIZE_PT, hriBandHeightMm } from '../../barcode/hri';
 import { layoutBarcode } from '../../barcode/layout';
+import { layoutImage } from '../../image/layout';
 import { layoutText } from '../../text/layout';
 import { hexToRgb } from './color';
 import { buildEllipsePath } from './ellipsePath';
 import type { EmbeddedFonts } from './fonts';
+import type { EmbeddedImages } from './images';
 import { mapPath, pathsToPdfPathOperators, pathToPdfPathOperators, polygonToPath } from './path';
 import { mmToPt, yFlip } from './units';
 import { buildRoundedRectPath } from './roundedRect';
@@ -54,7 +58,14 @@ function paintOp(hasFill: boolean, hasStroke: boolean): PDFOperator {
  * once this is wired into sheet printing. Every element is authored
  * relative to the label, never the page.
  */
-export function drawElement(page: PDFPage, element: Element, pageHeightMm: Mm, placement: Placement = IDENTITY_PLACEMENT, fonts?: EmbeddedFonts): void {
+export function drawElement(
+  page: PDFPage,
+  element: Element,
+  pageHeightMm: Mm,
+  placement: Placement = IDENTITY_PLACEMENT,
+  fonts?: EmbeddedFonts,
+  images?: EmbeddedImages,
+): void {
   if (!element.visible) return;
   switch (element.type) {
     case 'rect':
@@ -71,6 +82,9 @@ export function drawElement(page: PDFPage, element: Element, pageHeightMm: Mm, p
       break;
     case 'barcode':
       drawBarcodeElement(page, element, pageHeightMm, placement, fonts);
+      break;
+    case 'image':
+      if (images) drawImageElement(page, element, pageHeightMm, placement, images);
       break;
   }
 }
@@ -245,4 +259,54 @@ function drawBarcodeElement(page: PDFPage, element: Extract<Element, { type: 'ba
       }
     }
   }
+}
+
+/**
+ * The one element type that's genuinely raster (CLAUDE.md invariant 5 is
+ * about barcodes, not images). Crop and fit are pure geometry (`layoutImage`,
+ * identical math on both renderers): the full uncropped bitmap is drawn at a
+ * rect that may extend past the element box, clipped to the box exactly like
+ * a rect element's own fill would be. Rotation has no point-list
+ * representation to give a bitmap, so — like text — it's drawn with
+ * `drawImage`'s own `rotate` option around the image's already-placed
+ * bottom-left corner (PDF's coordinate convention for that option), negated
+ * to match PDF's counter-clockwise convention same as text.
+ */
+function drawImageElement(page: PDFPage, element: Extract<Element, { type: 'image' }>, pageHeightMm: Mm, placement: Placement, images: EmbeddedImages): void {
+  const embedded = images.get(element.assetId);
+  if (!embedded) return;
+
+  const localRect: Rect = { x: element.x, y: element.y, width: element.width, height: element.height };
+  const { fullImageRect } = layoutImage({
+    naturalWidthPx: embedded.width,
+    naturalHeightPx: embedded.height,
+    crop: element.crop,
+    fit: element.fit,
+    boxWidthMm: localRect.width,
+    boxHeightMm: localRect.height,
+  });
+  const absImageRect: Rect = {
+    x: fullImageRect.x + localRect.x,
+    y: fullImageRect.y + localRect.y,
+    width: fullImageRect.width,
+    height: fullImageRect.height,
+  };
+
+  const elementCenter = boxCenter(localRect);
+  const toSheet = withElementRotation(placement, elementCenter, element.rotation);
+  const totalAngle = (element.rotation + placement.extraRotationDeg) % 360;
+  const bottomLeft = toSheet({ x: absImageRect.x, y: absImageRect.y + absImageRect.height });
+
+  const clipPath = mapPath(buildRoundedRectPath(localRect, 0, element.rotation), placement.transform);
+
+  page.pushOperators(pushGraphicsState(), ...pathToPdfPathOperators(clipPath, pageHeightMm), clip(), endPath());
+  page.drawImage(embedded, {
+    x: mmToPt(bottomLeft.x),
+    y: yFlip(bottomLeft.y, pageHeightMm),
+    width: mmToPt(absImageRect.width),
+    height: mmToPt(absImageRect.height),
+    rotate: degrees(-totalAngle),
+    opacity: element.opacity,
+  });
+  page.pushOperators(popGraphicsState());
 }
