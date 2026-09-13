@@ -13,3 +13,7 @@ export function newElementId(): string {
 export function newAssetId(): string {
   return `asset-${randomToken()}`;
 }
+
+export function newProjectId(): string {
+  return `proj-${randomToken()}`;
+}

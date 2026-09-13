@@ -16,6 +16,10 @@ interface UiState {
   showBleed: boolean;
   activeGuides: SnapGuide[];
   drag: DragKind | null;
+  /** Differs from the last explicit save-to-file — see projectSession.ts. Never conflated with autosave-to-IndexedDB, a separate safety net. */
+  isDirty: boolean;
+  /** Whether the current project has a linked File System Access handle (Chromium only). */
+  hasFileHandle: boolean;
 
   select: (ids: string[]) => void;
   toggleSelect: (id: string) => void;
@@ -26,6 +30,8 @@ interface UiState {
   toggleBleed: () => void;
   setActiveGuides: (guides: SnapGuide[]) => void;
   setDrag: (drag: DragKind | null) => void;
+  setDirty: (dirty: boolean) => void;
+  setHasFileHandle: (has: boolean) => void;
 }
 
 const ZOOM_MIN = 0.5;
@@ -44,6 +50,8 @@ export const useUiStore = create<UiState>((set) => ({
   showBleed: false,
   activeGuides: [],
   drag: null,
+  isDirty: false,
+  hasFileHandle: false,
 
   select: (ids) => set({ selectedIds: ids }),
   toggleSelect: (id) =>
@@ -57,4 +65,6 @@ export const useUiStore = create<UiState>((set) => ({
   toggleBleed: () => set((state) => ({ showBleed: !state.showBleed })),
   setActiveGuides: (guides) => set({ activeGuides: guides }),
   setDrag: (drag) => set({ drag }),
+  setDirty: (dirty) => set({ isDirty: dirty }),
+  setHasFileHandle: (has) => set({ hasFileHandle: has }),
 }));

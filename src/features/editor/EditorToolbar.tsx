@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { useStore } from 'zustand';
 import type { ContentRotation } from '../../model/types';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
+import { useProjectSessionContext } from '../../state/projectSessionContext';
 
 const ZOOM_STEP = 0.25;
 const ROTATION_CYCLE: Record<ContentRotation, ContentRotation> = { 0: 90, 90: 180, 180: 270, 270: 0 };
@@ -16,6 +18,18 @@ export function EditorToolbar() {
   const toggleBleed = useUiStore((s) => s.toggleBleed);
   const contentRotation = useDocumentStore((s) => s.document.contentRotation);
   const setContentRotation = useDocumentStore((s) => s.setContentRotation);
+  const { saveToFile, isDirty, hasFileHandle } = useProjectSessionContext();
+
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveToFile();
+      }
+    }
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [saveToFile]);
 
   return (
     <div className="flex items-center gap-3 px-3 py-1.5 border-b border-line bg-panel text-xs">
@@ -59,6 +73,13 @@ export function EditorToolbar() {
         <input type="checkbox" checked={showBleed} onChange={toggleBleed} />
         Bleed
       </label>
+
+      <div className="ml-auto flex items-center gap-2">
+        <span className="text-ink-tertiary">{isDirty ? 'Unsaved changes' : 'Saved'}</span>
+        <ToolbarButton title="Save (Ctrl+S)" disabled={!isDirty} onClick={() => saveToFile()}>
+          {hasFileHandle ? 'Save' : 'Save As…'}
+        </ToolbarButton>
+      </div>
     </div>
   );
 }

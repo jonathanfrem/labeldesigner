@@ -6,6 +6,7 @@ import { renderEmptySheetPdf } from '../../render/pdf/sheet';
 import { renderCalibrationSheetPdf } from '../../render/pdf/calibration';
 import { NumberField } from '../../components/NumberField';
 import { Editor } from '../editor/Editor';
+import { useProjectSessionContext } from '../../state/projectSessionContext';
 
 const REFERENCE_LENGTH_MM = 100;
 
@@ -47,6 +48,7 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
   const [tab, setTab] = useState<WorkbenchTab>(autoOpenCalibration ? 'print' : 'design');
   const [calibration, setCalibration] = useState<MeasuredCalibration>(IDENTITY_CALIBRATION);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
+  const { pendingMismatch, addEmbeddedAsCustomTemplate, updateToLibraryTemplate, dismissMismatch } = useProjectSessionContext();
 
   const margins = useMemo(() => derivedMargins(template), [template]);
 
@@ -112,6 +114,29 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
           </TabButton>
         </div>
       </div>
+
+      {pendingMismatch && (
+        <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-line bg-warn/10 text-xs text-ink">
+          {pendingMismatch.kind === 'missing' ? (
+            <>
+              <span>This project&rsquo;s template &ldquo;{pendingMismatch.embedded.name}&rdquo; isn&rsquo;t in your template library.</span>
+              <button className="ml-auto underline hover:no-underline" onClick={() => addEmbeddedAsCustomTemplate()}>
+                Add it as a custom template
+              </button>
+            </>
+          ) : (
+            <>
+              <span>This project&rsquo;s embedded template differs from the library version of &ldquo;{pendingMismatch.library.name}&rdquo;. Keeping the embedded copy so nothing moves.</span>
+              <button className="ml-auto underline hover:no-underline" onClick={() => updateToLibraryTemplate()}>
+                Update to library version
+              </button>
+            </>
+          )}
+          <button className="text-ink-tertiary hover:text-ink" onClick={() => dismissMismatch()}>
+            ×
+          </button>
+        </div>
+      )}
 
       {tab === 'design' && <Editor template={template} />}
 

@@ -23,6 +23,12 @@ export function Editor({ template }: EditorProps) {
   const documentTemplateId = useDocumentStore((s) => s.document.templateId);
 
   useEffect(() => {
+    // App.tsx's click handlers (handleUseTemplate/handleOpenProject/handleOpenFromFile)
+    // call into projectSession.ts to install the document *before* switching
+    // to this view, so documentTemplateId already matches template.id by the
+    // time Editor mounts and this effect is a no-op — it only exists as a
+    // fallback for any future path that reaches Workbench without going
+    // through the session first.
     if (documentTemplateId !== template.id) {
       loadTemplate(template);
       resetDocumentHistory();

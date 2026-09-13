@@ -39,6 +39,7 @@ const UNSET_TEMPLATE: SheetTemplate = {
 interface DocumentState {
   document: LabelDocument;
   loadTemplate: (template: SheetTemplate) => void;
+  loadDocument: (document: LabelDocument) => void;
   addElement: (element: Element) => void;
   addElements: (elements: Element[]) => void;
   /** Adds the asset and its placing element in one step, so undo removes both together. */
@@ -50,6 +51,8 @@ interface DocumentState {
   setElementOrder: (orderedIds: string[]) => void;
   setBackgroundFill: (fill: string | undefined) => void;
   setContentRotation: (rotation: ContentRotation) => void;
+  /** Reconciliation only (PLAN §4.1): swaps the embedded template for the library's version without touching elements, size or rotation. */
+  setTemplate: (template: SheetTemplate) => void;
 }
 
 /**
@@ -66,6 +69,13 @@ export const useDocumentStore = create<DocumentState>()(
       loadTemplate: (template) => {
         set((state) => {
           state.document = blankDocument(template);
+        });
+      },
+
+      /** Counterpart to `loadTemplate` for opening a saved project — installs the document as-is, embedded template and all. */
+      loadDocument: (document) => {
+        set((state) => {
+          state.document = document;
         });
       },
 
@@ -137,6 +147,12 @@ export const useDocumentStore = create<DocumentState>()(
       setBackgroundFill: (fill) => {
         set((state) => {
           state.document.background = fill ? { fill } : undefined;
+        });
+      },
+
+      setTemplate: (template) => {
+        set((state) => {
+          state.document.template = template;
         });
       },
 
