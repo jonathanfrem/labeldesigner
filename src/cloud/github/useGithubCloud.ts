@@ -43,6 +43,11 @@ export function useGithubCloud(): GithubCloudApi {
   const [needsInstall, setNeedsInstall] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // A revoked or expired session is discovered mid-save, deep inside auth. Without this the
+  // panel would keep showing the old login with the Connect button hidden, and the user
+  // would have no way back.
+  useEffect(() => auth.subscribe(setSession), [auth]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {

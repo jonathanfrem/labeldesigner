@@ -60,14 +60,19 @@ export default function App() {
     }
   }, [cloud]);
 
-  // Keyed on the repo rather than on `cloud`, whose identity changes on every render.
-  const repoKey = cloud.repo ? `${cloud.repo.owner}/${cloud.repo.repo}` : '';
+  // Keyed on the repo and login rather than on `cloud`, whose identity changes every render.
+  // The login matters because a session can end on its own (revoked or expired token), and
+  // the remote list must empty rather than sit there showing a repo we can no longer read.
+  const remoteKey = cloud.repo && cloud.session ? `${cloud.session.login}:${cloud.repo.owner}/${cloud.repo.repo}` : '';
   useEffect(() => {
-    if (repoKey) reloadRemote();
-    else setRemoteProjects([]);
-    // reloadRemote closes over `cloud` and would re-run constantly; the repo is what matters.
+    if (remoteKey) reloadRemote();
+    else {
+      setRemoteProjects([]);
+      setRemoteError(null);
+    }
+    // reloadRemote closes over `cloud` and would re-run constantly; the key is what matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [repoKey]);
+  }, [remoteKey]);
 
   /** Guards navigation away from an unsaved workbench — a solo-user tool doesn't need more than a native confirm. */
   function goTo(next: View) {

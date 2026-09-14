@@ -50,6 +50,22 @@ export class GithubAuth {
   private loaded = false;
 
   /**
+   * Notified whenever the stored session changes.
+   *
+   * A session can end without the user doing anything — a revoked token or an expired
+   * refresh token clears it from deep inside a save. Without this, the UI would keep
+   * showing the old login and hide the Connect button, leaving no way back.
+   */
+  private listeners = new Set<(session: GithubSession | null) => void>();
+
+  subscribe(listener: (session: GithubSession | null) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  /**
    * The in-flight refresh, shared by every concurrent caller.
    *
    * GitHub invalidates a refresh token the instant it is used and issues a new one. Two
@@ -72,6 +88,8 @@ export class GithubAuth {
     this.loaded = true;
     if (state) await writeSetting(AUTH_KEY, state);
     else await deleteSetting(AUTH_KEY);
+    const session = state ? { login: state.login, avatarUrl: state.avatarUrl } : null;
+    this.listeners.forEach((listener) => listener(session));
   }
 
   async getSession(): Promise<GithubSession | null> {

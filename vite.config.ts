@@ -1,8 +1,8 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-// @ts-expect-error -- plain .mjs shared with scripts/serve.mjs, deliberately untyped so the
-// production server stays dependency-free and needs no build step.
+// Plain .mjs, shared with scripts/serve.mjs so the production server stays dependency-free
+// and needs no build step. tsconfig.node.json sets allowJs to type-check it.
 import { githubAuthDevMiddleware } from './scripts/githubAuthRoutes.mjs';
 
 export default defineConfig({

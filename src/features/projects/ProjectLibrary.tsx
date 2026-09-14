@@ -117,7 +117,9 @@ export function ProjectLibrary({
           {!loading && filtered.length === 0 && <li className="px-3 py-4 text-sm text-ink-tertiary">No saved projects yet.</li>}
         </ul>
 
-        {cloud.repo && (
+        {/* Both, not just the repo: the repo choice is remembered across a dropped session,
+            but there's nothing to list until the connection is live again. */}
+        {cloud.repo && cloud.session && (
           <div className="border-t border-line">
             <div className="px-3 py-2 flex items-center gap-2">
               <span className="text-xs text-ink-tertiary uppercase tracking-wide truncate flex-1">
