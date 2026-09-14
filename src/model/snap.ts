@@ -14,10 +14,24 @@ export interface SnapTargets {
 
 const SNAP_TOLERANCE_MM = 1.5;
 
-/** Label edges/centre plus every other (non-excluded) element's edges/centre. */
-export function collectSnapTargets(labelSize: { width: Mm; height: Mm }, elements: Element[], excludeIds: Set<string>): SnapTargets {
+/**
+ * Label edges/centre plus every other (non-excluded) element's edges/centre.
+ * `safeMarginMm`, when given, also adds the safe-area boundary (the label
+ * rect inset uniformly on every side — same inset the safe-area overlay
+ * draws, regardless of die-cut shape) so dragging can snap to it.
+ */
+export function collectSnapTargets(
+  labelSize: { width: Mm; height: Mm },
+  elements: Element[],
+  excludeIds: Set<string>,
+  safeMarginMm?: Mm,
+): SnapTargets {
   const xs: Mm[] = [0, labelSize.width / 2, labelSize.width];
   const ys: Mm[] = [0, labelSize.height / 2, labelSize.height];
+  if (safeMarginMm !== undefined) {
+    xs.push(safeMarginMm, labelSize.width - safeMarginMm);
+    ys.push(safeMarginMm, labelSize.height - safeMarginMm);
+  }
   for (const el of elements) {
     if (excludeIds.has(el.id)) continue;
     xs.push(el.x, el.x + el.width / 2, el.x + el.width);

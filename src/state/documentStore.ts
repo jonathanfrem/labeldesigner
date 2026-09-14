@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
-import type { Asset, ContentRotation, Element, LabelDocument, SheetTemplate } from '../model/types';
+import type { Asset, ContentRotation, Element, LabelDocument, Mm, SheetTemplate } from '../model/types';
 import { contentCanvasSize } from '../model/geometry';
 import { newElementId } from '../lib/id';
 
@@ -53,6 +53,8 @@ interface DocumentState {
   setContentRotation: (rotation: ContentRotation) => void;
   /** Reconciliation only (PLAN §4.1): swaps the embedded template for the library's version without touching elements, size or rotation. */
   setTemplate: (template: SheetTemplate) => void;
+  /** Live-editable per-document override of the template's safe-print margin; part of the embedded template, so it round-trips through save/load. */
+  setSafeMarginMm: (mm: Mm) => void;
 }
 
 /**
@@ -153,6 +155,12 @@ export const useDocumentStore = create<DocumentState>()(
       setTemplate: (template) => {
         set((state) => {
           state.document.template = template;
+        });
+      },
+
+      setSafeMarginMm: (mm) => {
+        set((state) => {
+          state.document.template.safeMarginMm = mm;
         });
       },
 

@@ -5,6 +5,7 @@ import { newTemplateId } from '../../lib/id';
 import { NumberField } from '../../components/NumberField';
 import { SheetPreview } from '../../render/svg/SheetPreview';
 import { DerivedGeometryTable } from './DerivedGeometryTable';
+import { DEFAULT_UNPRINTABLE_MARGIN_MM } from '../editor/overlayGeometry';
 
 export interface CustomTemplateEditorProps {
   title: string;
@@ -215,6 +216,16 @@ export function CustomTemplateEditor({
               onChange={(v) => applyGeometry({ cornerRadius: v })}
             />
           )}
+        </section>
+
+        <section className="space-y-2">
+          <SectionLabel>Printable area</SectionLabel>
+          <NumberField
+            label="Safe margin"
+            suffix="mm"
+            value={draft.safeMarginMm ?? DEFAULT_UNPRINTABLE_MARGIN_MM}
+            onChange={(v) => setDraft((d) => ({ ...d, safeMarginMm: v }))}
+          />
         </section>
 
         <div className="flex gap-2 pt-2 border-t border-line">

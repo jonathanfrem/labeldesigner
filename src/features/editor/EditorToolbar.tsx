@@ -1,9 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 import type { ContentRotation } from '../../model/types';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
 import { useProjectSessionContext } from '../../state/projectSessionContext';
+import { resolveSafeMarginMm } from './overlayGeometry';
+import { formatNumber, parseLocaleNumber } from '../../lib/number';
 
 const ZOOM_STEP = 0.25;
 const ROTATION_CYCLE: Record<ContentRotation, ContentRotation> = { 0: 90, 90: 180, 180: 270, 270: 0 };
@@ -18,6 +20,8 @@ export function EditorToolbar() {
   const toggleBleed = useUiStore((s) => s.toggleBleed);
   const contentRotation = useDocumentStore((s) => s.document.contentRotation);
   const setContentRotation = useDocumentStore((s) => s.setContentRotation);
+  const safeMarginMm = useDocumentStore((s) => resolveSafeMarginMm(s.document.template));
+  const setSafeMarginMm = useDocumentStore((s) => s.setSafeMarginMm);
   const { saveToFile, isDirty, hasFileHandle } = useProjectSessionContext();
 
   useEffect(() => {
@@ -69,6 +73,7 @@ export function EditorToolbar() {
         <input type="checkbox" checked={showSafeArea} onChange={toggleSafeArea} />
         Safe area
       </label>
+      {showSafeArea && <SafeMarginField value={safeMarginMm} onChange={setSafeMarginMm} />}
       <label className="flex items-center gap-1.5 text-ink-secondary">
         <input type="checkbox" checked={showBleed} onChange={toggleBleed} />
         Bleed
@@ -81,6 +86,35 @@ export function EditorToolbar() {
         </ToolbarButton>
       </div>
     </div>
+  );
+}
+
+function SafeMarginField({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const [text, setText] = useState(() => formatNumber(value));
+
+  useEffect(() => {
+    setText((prev) => (parseLocaleNumber(prev) === value ? prev : formatNumber(value)));
+  }, [value]);
+
+  function handleChange(raw: string) {
+    setText(raw);
+    const parsed = parseLocaleNumber(raw);
+    if (!Number.isNaN(parsed) && parsed >= 0) onChange(parsed);
+  }
+
+  return (
+    <label className="flex items-center gap-1.5 text-ink-secondary" title="Safe-print margin for this template, editable per document">
+      Safe margin
+      <input
+        type="text"
+        inputMode="decimal"
+        className="w-12 bg-panel-raised border border-line rounded px-1.5 py-1 text-sm font-mono tabular-nums text-ink focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent"
+        value={text}
+        onChange={(e) => handleChange(e.target.value)}
+        onBlur={() => setText(formatNumber(value))}
+      />
+      mm
+    </label>
   );
 }
 

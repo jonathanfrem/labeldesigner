@@ -82,6 +82,7 @@ function validateTemplateShape(t: Record<string, unknown>): SheetTemplate {
     pitchY: num('pitchY'),
     shape: shape as LabelShape,
     cornerRadius: typeof t.cornerRadius === 'number' ? t.cornerRadius : undefined,
+    safeMarginMm: typeof t.safeMarginMm === 'number' ? t.safeMarginMm : undefined,
     builtIn: false,
     verified: false,
     source: optionalStr('source'),

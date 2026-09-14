@@ -18,6 +18,13 @@ export interface SheetTemplate {
   pitchY: Mm;
   shape: LabelShape;
   cornerRadius?: Mm;
+  /**
+   * Inset from the label edge marking the safe-print boundary, shown as the
+   * dashed overlay in the editor. Per-template default; undefined means "use
+   * DEFAULT_UNPRINTABLE_MARGIN_MM" (src/features/editor/overlayGeometry.ts) —
+   * keeps old saved templates/projects loading unchanged.
+   */
+  safeMarginMm?: Mm;
   builtIn: boolean;
   /**
    * Means two different things depending on `builtIn`, and is set through two

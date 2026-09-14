@@ -10,7 +10,7 @@ import { labelClipToSvgPath } from '../../render/pdf/labelClip';
 import { DocumentRenderer } from '../../render/svg/DocumentRenderer';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
-import { bleedSvgPath, safeAreaSvgPath, DEFAULT_BLEED_MM, DEFAULT_UNPRINTABLE_MARGIN_MM } from './overlayGeometry';
+import { bleedSvgPath, safeAreaSvgPath, resolveSafeMarginMm, DEFAULT_BLEED_MM } from './overlayGeometry';
 
 export const BASE_PX_PER_MM = 4;
 const HANDLE_RADIUS_MM = 0.35;
@@ -180,7 +180,7 @@ export function LabelCanvas() {
           const primaryId = drag.ids[0];
           const startBox = drag.startBoxes.get(primaryId)!;
           const proposed: Rect = { ...startBox, x: startBox.x + dx, y: startBox.y + dy };
-          const targets = collectSnapTargets(document.size, elements, new Set(drag.ids));
+          const targets = collectSnapTargets(document.size, elements, new Set(drag.ids), showSafeArea ? resolveSafeMarginMm(template) : undefined);
           const snapped = snapBoxPosition(proposed, targets);
           snapDx = snapped.x - startBox.x;
           snapDy = snapped.y - startBox.y;
@@ -216,7 +216,7 @@ export function LabelCanvas() {
         setLiveOverrides({ [drag.id]: { rotation } });
       }
     },
-    [clientToMm, document.size, elements],
+    [clientToMm, document.size, elements, showSafeArea, template],
   );
 
   const handlePointerUp = useCallback(
@@ -291,7 +291,7 @@ export function LabelCanvas() {
 
       {showSafeArea && (
         <path
-          d={safeAreaSvgPath(template, labelRect, DEFAULT_UNPRINTABLE_MARGIN_MM)}
+          d={safeAreaSvgPath(template, labelRect, resolveSafeMarginMm(template))}
           fill="none"
           stroke="#dc2626"
           strokeDasharray="1.5,1"

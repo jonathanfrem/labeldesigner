@@ -8,6 +8,11 @@ import { buildRoundedRectPath } from '../../render/pdf/roundedRect';
 export const DEFAULT_UNPRINTABLE_MARGIN_MM = 5;
 export const DEFAULT_BLEED_MM = 1;
 
+/** The template's safe-margin override, or the app default when unset (backward-compatible with saves from before this field existed). */
+export function resolveSafeMarginMm(template: SheetTemplate): number {
+  return template.safeMarginMm ?? DEFAULT_UNPRINTABLE_MARGIN_MM;
+}
+
 /**
  * The safe-area boundary: the label rect inset by the unprintable margin,
  * with corners inset further so the safe region narrows along the die-cut
