@@ -116,7 +116,7 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
     <div className="flex-1 flex flex-col min-h-0">
       <div className="shrink-0 flex items-center gap-4 px-4 h-10 border-b border-line bg-panel">
         <button className="text-xs text-ink-secondary hover:text-ink" onClick={onBack}>
-          Back to library
+          Back to projects
         </button>
         <span className="text-xs text-ink-tertiary">{template.name}</span>
         <div className="ml-auto flex gap-1">

@@ -5,11 +5,11 @@ import type { Asset, ContentRotation, Element, LabelDocument, SheetTemplate } fr
 import { contentCanvasSize } from '../model/geometry';
 import { newElementId } from '../lib/id';
 
-function blankDocument(template: SheetTemplate, contentRotation: ContentRotation = 0): LabelDocument {
+function blankDocument(template: SheetTemplate, contentRotation: ContentRotation = 0, name?: string): LabelDocument {
   return {
     schemaVersion: 1,
     id: `doc-${template.id}`,
-    name: template.name,
+    name: name ?? template.name,
     templateId: template.id,
     template,
     size: contentCanvasSize(template, contentRotation),
@@ -38,7 +38,7 @@ const UNSET_TEMPLATE: SheetTemplate = {
 
 interface DocumentState {
   document: LabelDocument;
-  loadTemplate: (template: SheetTemplate) => void;
+  loadTemplate: (template: SheetTemplate, name?: string) => void;
   loadDocument: (document: LabelDocument) => void;
   addElement: (element: Element) => void;
   addElements: (elements: Element[]) => void;
@@ -66,9 +66,9 @@ export const useDocumentStore = create<DocumentState>()(
     immer((set) => ({
       document: blankDocument(UNSET_TEMPLATE),
 
-      loadTemplate: (template) => {
+      loadTemplate: (template, name) => {
         set((state) => {
-          state.document = blankDocument(template);
+          state.document = blankDocument(template, 0, name);
         });
       },
 

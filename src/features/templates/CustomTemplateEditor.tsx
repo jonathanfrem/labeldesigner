@@ -11,6 +11,8 @@ export interface CustomTemplateEditorProps {
   initial: SheetTemplate;
   onSave: (template: SheetTemplate) => void;
   onCancel: () => void;
+  cancelLabel?: string;
+  saveLabel?: string;
 }
 
 type Mode = 'pitch' | 'margin';
@@ -22,7 +24,14 @@ type GeometryPatch = Partial<
   >
 >;
 
-export function CustomTemplateEditor({ title, initial, onSave, onCancel }: CustomTemplateEditorProps) {
+export function CustomTemplateEditor({
+  title,
+  initial,
+  onSave,
+  onCancel,
+  cancelLabel = 'Back to library',
+  saveLabel = 'Save',
+}: CustomTemplateEditorProps) {
   const [draft, setDraft] = useState<SheetTemplate>(initial);
   const [mode, setMode] = useState<Mode>('pitch');
   const [marginRightDraft, setMarginRightDraft] = useState(() => derivedMargins(initial).marginRight);
@@ -81,7 +90,7 @@ export function CustomTemplateEditor({ title, initial, onSave, onCancel }: Custo
       <div className="w-96 shrink-0 border-r border-line bg-panel p-4 overflow-y-auto space-y-5">
         <div className="flex items-center justify-between">
           <button className="text-xs text-ink-secondary hover:text-ink" onClick={onCancel}>
-            Back to library
+            {cancelLabel}
           </button>
         </div>
 
@@ -214,7 +223,7 @@ export function CustomTemplateEditor({ title, initial, onSave, onCancel }: Custo
             disabled={!canSave}
             onClick={handleSave}
           >
-            Save
+            {saveLabel}
           </button>
           <button className="flex-1 bg-panel-raised hover:bg-line rounded px-3 py-2 text-sm text-ink border border-line" onClick={onCancel}>
             Cancel

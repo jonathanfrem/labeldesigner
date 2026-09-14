@@ -47,7 +47,7 @@ export interface ProjectSessionApi {
   /** Resolves to null if the user cancelled the picker. */
   openFromFile: () => Promise<LabelDocument | null>;
   openFromLibrary: (stored: StoredProject) => LabelDocument;
-  newProject: (template: SheetTemplate) => void;
+  newProject: (template: SheetTemplate, name?: string) => void;
   pendingMismatch: TemplateMismatch | null;
   addEmbeddedAsCustomTemplate: () => Promise<void>;
   updateToLibraryTemplate: () => void;
@@ -153,8 +153,8 @@ export function useProjectSession(
   );
 
   const newProject = useCallback(
-    (template: SheetTemplate) => {
-      useDocumentStore.getState().loadTemplate(template);
+    (template: SheetTemplate, name?: string) => {
+      useDocumentStore.getState().loadTemplate(template, name);
       resetDocumentHistory();
       const doc = useDocumentStore.getState().document;
       fileHandleRef.current = null;

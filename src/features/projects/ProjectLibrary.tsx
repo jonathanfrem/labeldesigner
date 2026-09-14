@@ -7,8 +7,7 @@ export interface ProjectLibraryProps {
   onOpen: (project: StoredProject) => void;
   onOpenFromFile: () => Promise<void>;
   onDelete: (id: string) => void;
-  onNewFromTemplate: () => void;
-  onBack: () => void;
+  onNewProject: () => void;
 }
 
 function formatUpdatedAt(ms: number): string {
@@ -18,7 +17,7 @@ function formatUpdatedAt(ms: number): string {
   });
 }
 
-export function ProjectLibrary({ projects, loading, onOpen, onOpenFromFile, onDelete, onNewFromTemplate, onBack }: ProjectLibraryProps) {
+export function ProjectLibrary({ projects, loading, onOpen, onOpenFromFile, onDelete, onNewProject }: ProjectLibraryProps) {
   const [query, setQuery] = useState('');
   const [openError, setOpenError] = useState<string | null>(null);
 
@@ -41,9 +40,6 @@ export function ProjectLibrary({ projects, loading, onOpen, onOpenFromFile, onDe
     <div className="flex-1 flex min-h-0">
       <div className="w-72 shrink-0 border-r border-line bg-panel flex flex-col min-h-0">
         <div className="p-3 border-b border-line space-y-2">
-          <button className="text-xs text-ink-secondary hover:text-ink" onClick={onBack}>
-            &larr; Back
-          </button>
           <input
             type="text"
             placeholder="Search projects…"
@@ -82,9 +78,9 @@ export function ProjectLibrary({ projects, loading, onOpen, onOpenFromFile, onDe
         <div className="p-3 border-t border-line space-y-2">
           <button
             className="w-full bg-panel-raised hover:bg-line rounded px-3 py-2 text-sm text-ink border border-line"
-            onClick={onNewFromTemplate}
+            onClick={onNewProject}
           >
-            New project from template
+            New project
           </button>
           <button className="w-full bg-panel-raised hover:bg-line rounded px-3 py-2 text-sm text-ink border border-line" onClick={handleOpenFromFile}>
             Open project file&hellip;

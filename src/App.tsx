@@ -12,40 +12,24 @@ import { TemplateLibrary } from './features/templates/TemplateLibrary';
 import { CustomTemplateEditor } from './features/templates/CustomTemplateEditor';
 import { Workbench } from './features/workbench/Workbench';
 import { ProjectLibrary } from './features/projects/ProjectLibrary';
+import { NewProjectFlow } from './features/projects/NewProjectFlow';
 import { newTemplateId } from './lib/id';
+import { defaultCustomTemplate } from './lib/defaultTemplate';
 
 const adapter = new IndexedDbTemplateStorageAdapter();
 const projectAdapter = new IndexedDbProjectStorageAdapter();
-
-function defaultCustomTemplate(): SheetTemplate {
-  return {
-    id: newTemplateId(),
-    name: 'New custom template',
-    pageSize: { width: 210, height: 297 },
-    marginTop: 10,
-    marginLeft: 10,
-    labelWidth: 50,
-    labelHeight: 30,
-    columns: 3,
-    rows: 8,
-    pitchX: 50,
-    pitchY: 30,
-    shape: 'rect',
-    builtIn: false,
-    verified: false,
-  };
-}
 
 type View =
   | { type: 'library' }
   | { type: 'editor'; title: string; draft: SheetTemplate }
   | { type: 'workbench'; template: SheetTemplate; autoOpenCalibration?: boolean }
-  | { type: 'projects' };
+  | { type: 'projects' }
+  | { type: 'newProject' };
 
 export default function App() {
   const { allTemplates, saveCustom, setCustomVerified } = useTemplateRepository(adapter);
   const { projects, loading: projectsLoading, removeProject, refresh: refreshProjects } = useProjectRepository(projectAdapter);
-  const [view, setView] = useState<View>({ type: 'library' });
+  const [view, setView] = useState<View>({ type: 'projects' });
   const [showAbout, setShowAbout] = useState(false);
 
   const resolveTemplate = useMemo(() => (id: string) => allTemplates.find((t) => t.id === id), [allTemplates]);
@@ -78,6 +62,17 @@ export default function App() {
 
   async function handleDeleteProject(id: string) {
     await removeProject(id);
+  }
+
+  function handleCreateWithTemplate(name: string, template: SheetTemplate) {
+    session.newProject(template, name || undefined);
+    goTo({ type: 'workbench', template });
+  }
+
+  async function handleCreateWithCustomTemplate(name: string, template: SheetTemplate) {
+    await saveCustom(template);
+    session.newProject(template, name || undefined);
+    goTo({ type: 'workbench', template });
   }
 
   function openNewCustom() {
@@ -116,6 +111,9 @@ export default function App() {
           <button className="ml-auto text-xs text-ink-tertiary hover:text-ink" onClick={() => goTo({ type: 'projects' })}>
             My projects
           </button>
+          <button className="text-xs text-ink-tertiary hover:text-ink" onClick={() => goTo({ type: 'library' })}>
+            Templates
+          </button>
           <button className="text-xs text-ink-tertiary hover:text-ink" onClick={() => setShowAbout(true)}>
             About &amp; licences
           </button>
@@ -151,13 +149,21 @@ export default function App() {
             onOpen={handleOpenProject}
             onOpenFromFile={handleOpenFromFile}
             onDelete={handleDeleteProject}
-            onNewFromTemplate={() => goTo({ type: 'library' })}
-            onBack={() => goTo({ type: 'library' })}
+            onNewProject={() => goTo({ type: 'newProject' })}
+          />
+        )}
+
+        {view.type === 'newProject' && (
+          <NewProjectFlow
+            templates={allTemplates}
+            onCreateWithTemplate={handleCreateWithTemplate}
+            onCreateWithCustomTemplate={handleCreateWithCustomTemplate}
+            onCancel={() => goTo({ type: 'projects' })}
           />
         )}
 
         {view.type === 'workbench' && (
-          <Workbench template={view.template} autoOpenCalibration={view.autoOpenCalibration} onBack={() => goTo({ type: 'library' })} />
+          <Workbench template={view.template} autoOpenCalibration={view.autoOpenCalibration} onBack={() => goTo({ type: 'projects' })} />
         )}
       </div>
     </ProjectSessionContext.Provider>
