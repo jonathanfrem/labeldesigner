@@ -8,6 +8,8 @@ import { newElementId } from '../../lib/id';
 import { ptToMm } from '../../text/layout';
 import { labelClipToSvgPath } from '../../render/pdf/labelClip';
 import { DocumentRenderer } from '../../render/svg/DocumentRenderer';
+import { createAssetFromFile } from '../../image/upload';
+import { isImageFile, newImageElement } from './imageImport';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
 import { bleedSvgPath, safeAreaSvgPath, resolveSafeMarginMm, DEFAULT_BLEED_MM } from './overlayGeometry';
@@ -67,11 +69,14 @@ export function LabelCanvas() {
 
   const document = useDocumentStore((s) => s.document);
   const updateElements = useDocumentStore((s) => s.updateElements);
+  const addImage = useDocumentStore((s) => s.addImage);
 
   const [liveOverrides, setLiveOverrides] = useState<Record<string, Partial<Element>>>({});
   const [marqueeRect, setMarqueeRect] = useState<Rect | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
 
   const selectedIds = useUiStore((s) => s.selectedIds);
   const zoom = useUiStore((s) => s.zoom);
@@ -107,6 +112,49 @@ export function LabelCanvas() {
     const local = pt.matrixTransform(ctm);
     return { x: local.x, y: local.y };
   }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.items).some((item) => item.kind === 'file')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+      const files = Array.from(e.dataTransfer.files).filter(isImageFile);
+      if (files.length === 0) {
+        setDropError('Drop a PNG, JPEG or SVG image.');
+        return;
+      }
+      const dropPoint = clientToMm(e.clientX, e.clientY);
+      void (async () => {
+        const newIds: string[] = [];
+        let offset = 0;
+        for (const file of files) {
+          try {
+            const { asset, warning } = await createAssetFromFile(file);
+            const el = newImageElement(asset, { x: dropPoint.x + offset, y: dropPoint.y + offset });
+            addImage(asset, el);
+            newIds.push(el.id);
+            if (warning) setDropError(warning);
+            offset += 5;
+          } catch (err) {
+            setDropError(err instanceof Error ? err.message : 'Failed to load image.');
+          }
+        }
+        if (newIds.length > 0) select(newIds);
+      })();
+    },
+    [clientToMm, addImage, select],
+  );
 
   const handlePointerDownElement = useCallback(
     (e: React.PointerEvent, element: Element) => {
@@ -273,7 +321,13 @@ export function LabelCanvas() {
   const editingElement = editingId ? elements.find((e) => e.id === editingId) : undefined;
 
   return (
-    <div className="relative" style={{ width: pxWidth, height: pxHeight }}>
+    <div
+      className="relative"
+      style={{ width: pxWidth, height: pxHeight }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
     <svg
       ref={svgRef}
       viewBox={`0 0 ${document.size.width} ${document.size.height}`}
@@ -370,6 +424,17 @@ export function LabelCanvas() {
         />
       )}
     </svg>
+
+    {isDragOver && <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-accent bg-accent/10" />}
+
+    {dropError && (
+      <div className="absolute left-1/2 top-2 -translate-x-1/2 flex items-center gap-2 px-2 py-1 text-[11px] text-warn bg-warn/10 border border-line rounded shadow-sm">
+        <span>{dropError}</span>
+        <button className="text-ink-tertiary hover:text-ink" onClick={() => setDropError(null)}>
+          ×
+        </button>
+      </div>
+    )}
 
     {editingElement && editingElement.type === 'text' && (
       <textarea

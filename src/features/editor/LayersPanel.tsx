@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
-import type { Asset, Element } from '../../model/types';
+import type { Element } from '../../model/types';
 import { BarcodeToolIcon, EllipseToolIcon, ImageToolIcon, LineToolIcon, RectToolIcon, TextToolIcon } from '../../components/icons';
 import { MIN_QUIET_ZONE_MODULES } from '../../barcode/layout';
 import { createAssetFromFile } from '../../image/upload';
 import { newElementId } from '../../lib/id';
+import { newImageElement } from './imageImport';
 import { DEFAULT_FONT_ID } from '../../text/fontCatalog';
 import { useDocumentStore } from '../../state/documentStore';
 import { useUiStore } from '../../state/uiStore';
@@ -66,28 +67,6 @@ function newShape(type: ShapeType): Element {
     };
   }
   return { ...base, type: 'line', stroke: '#334155', strokeWidth: 0.5 };
-}
-
-const DEFAULT_IMAGE_WIDTH_MM = 30;
-
-function newImageElement(asset: Asset): Element {
-  const aspect = asset.naturalWidthPx / asset.naturalHeightPx || 1;
-  return {
-    id: newElementId(),
-    name: 'Image',
-    x: 10,
-    y: 10,
-    width: DEFAULT_IMAGE_WIDTH_MM,
-    height: DEFAULT_IMAGE_WIDTH_MM / aspect,
-    rotation: 0,
-    locked: false,
-    visible: true,
-    opacity: 1,
-    type: 'image',
-    assetId: asset.id,
-    crop: { x: 0, y: 0, w: 1, h: 1 },
-    fit: 'contain',
-  };
 }
 
 export function LayersPanel() {
