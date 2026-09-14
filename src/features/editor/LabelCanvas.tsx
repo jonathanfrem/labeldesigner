@@ -13,7 +13,7 @@ import { useUiStore } from '../../state/uiStore';
 import { bleedSvgPath, safeAreaSvgPath, DEFAULT_BLEED_MM, DEFAULT_UNPRINTABLE_MARGIN_MM } from './overlayGeometry';
 
 export const BASE_PX_PER_MM = 4;
-const HANDLE_RADIUS_MM = 1.4;
+const HANDLE_RADIUS_MM = 0.35;
 const ROTATE_HANDLE_OFFSET_MM = 8;
 const NUDGE_MM = 0.5;
 const NUDGE_SHIFT_MM = 5;
@@ -445,8 +445,10 @@ function SelectionHandles({
             cy={rotateHandlePos.y}
             r={HANDLE_RADIUS_MM}
             fill="#fff"
+            fillOpacity={0.9}
             stroke="#3b82f6"
-            strokeWidth={0.3}
+            strokeWidth={0.15}
+            vectorEffect="non-scaling-stroke"
             style={{ cursor: 'grab' }}
             onPointerDown={onRotatePointerDown}
           />
@@ -461,8 +463,10 @@ function SelectionHandles({
                 width={HANDLE_RADIUS_MM * 2}
                 height={HANDLE_RADIUS_MM * 2}
                 fill="#fff"
+                fillOpacity={0.9}
                 stroke="#3b82f6"
-                strokeWidth={0.3}
+                strokeWidth={0.15}
+                vectorEffect="non-scaling-stroke"
                 style={{ cursor: CURSOR_FOR_HANDLE[h] }}
                 onPointerDown={(e) => onHandlePointerDown(e, h)}
               />
