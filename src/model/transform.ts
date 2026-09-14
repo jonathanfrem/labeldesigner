@@ -5,7 +5,7 @@ export type HandleId = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
 export const ALL_HANDLES: HandleId[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
-interface HandleSides {
+export interface HandleSides {
   moveLeft: boolean;
   moveRight: boolean;
   moveTop: boolean;
@@ -28,7 +28,11 @@ export function handlesForElementType(type: 'rect' | 'ellipse' | 'line' | 'text'
   return type === 'line' ? ['w', 'e'] : ALL_HANDLES;
 }
 
-const MIN_SIZE_MM = 1;
+export function sidesForHandle(handle: HandleId): HandleSides {
+  return HANDLE_SIDES[handle];
+}
+
+export const MIN_SIZE_MM = 1;
 
 function rotateVector(v: Point, degreesClockwise: number): Point {
   return rotatePoint(v, { x: 0, y: 0 }, degreesClockwise);

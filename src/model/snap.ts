@@ -1,5 +1,6 @@
 import type { Element, Mm } from './types';
 import type { Rect } from './geometry';
+import { MIN_SIZE_MM, type HandleSides } from './transform';
 
 export interface SnapGuide {
   orientation: 'v' | 'h';
@@ -55,6 +56,59 @@ export function snapBoxPosition(box: Rect, targets: SnapTargets): { x: Mm; y: Mm
   if (y.guide !== undefined) guides.push({ orientation: 'h', position: y.guide });
 
   return { x: x.value, y: y.value, guides };
+}
+
+/**
+ * Snaps a box being resized to the nearest target on each moving edge —
+ * only the edge(s) the active handle actually moves, so the anchor edge
+ * stays exactly where the resize logic put it. Only meaningful for an
+ * unrotated box: a resize handle's world-space edges are axis-aligned only
+ * at rotation 0, so callers should skip this at any other rotation.
+ */
+export function snapResizeBox(box: Rect, sides: HandleSides, targets: SnapTargets): { box: Rect; guides: SnapGuide[] } {
+  let { x, y, width, height } = box;
+  const guides: SnapGuide[] = [];
+
+  if (sides.moveRight) {
+    const snapped = nearestTarget(x + width, targets.xs);
+    if (snapped !== undefined) {
+      width = Math.max(MIN_SIZE_MM, snapped - x);
+      guides.push({ orientation: 'v', position: snapped });
+    }
+  } else if (sides.moveLeft) {
+    const snapped = nearestTarget(x, targets.xs);
+    if (snapped !== undefined) {
+      width = Math.max(MIN_SIZE_MM, x + width - snapped);
+      x = snapped;
+      guides.push({ orientation: 'v', position: snapped });
+    }
+  }
+
+  if (sides.moveBottom) {
+    const snapped = nearestTarget(y + height, targets.ys);
+    if (snapped !== undefined) {
+      height = Math.max(MIN_SIZE_MM, snapped - y);
+      guides.push({ orientation: 'h', position: snapped });
+    }
+  } else if (sides.moveTop) {
+    const snapped = nearestTarget(y, targets.ys);
+    if (snapped !== undefined) {
+      height = Math.max(MIN_SIZE_MM, y + height - snapped);
+      y = snapped;
+      guides.push({ orientation: 'h', position: snapped });
+    }
+  }
+
+  return { box: { x, y, width, height }, guides };
+}
+
+function nearestTarget(pos: Mm, targets: Mm[]): Mm | undefined {
+  let best: { dist: Mm; value: Mm } | undefined;
+  for (const t of targets) {
+    const dist = Math.abs(pos - t);
+    if (dist <= SNAP_TOLERANCE_MM && (!best || dist < best.dist)) best = { dist, value: t };
+  }
+  return best?.value;
 }
 
 function snapAxis(

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Element, LabelDocument } from '../../model/types';
 import type { Point, Rect } from '../../model/geometry';
 import { boxCenter, rotatePoint, rotatedAabb } from '../../model/geometry';
-import { collectSnapTargets, snapBoxPosition, type SnapGuide } from '../../model/snap';
-import { handlesForElementType, resizeBox, rotationFromPointer, type HandleId } from '../../model/transform';
+import { collectSnapTargets, snapBoxPosition, snapResizeBox, type SnapGuide } from '../../model/snap';
+import { handlesForElementType, resizeBox, rotationFromPointer, sidesForHandle, type HandleId } from '../../model/transform';
 import { newElementId } from '../../lib/id';
 import { ptToMm } from '../../text/layout';
 import { labelClipToSvgPath } from '../../render/pdf/labelClip';
@@ -246,7 +246,7 @@ export function LabelCanvas() {
       }
 
       if (drag.kind === 'resize') {
-        const next = resizeBox({
+        let next = resizeBox({
           box: drag.startBox,
           rotation: drag.startRotation,
           handle: drag.handle,
@@ -254,6 +254,19 @@ export function LabelCanvas() {
           aspectLocked: e.shiftKey,
           aboutCenter: e.altKey,
         });
+
+        // Only an unrotated box's own edges line up with world-space snap
+        // targets; aspect-locked and about-centre resizes move more than one
+        // edge in lockstep, which independent per-edge snapping would break.
+        let guides: SnapGuide[] = [];
+        if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && drag.startRotation === 0) {
+          const targets = collectSnapTargets(document.size, elements, new Set([drag.id]), showSafeArea ? resolveSafeMarginMm(template) : undefined);
+          const snapped = snapResizeBox(next, sidesForHandle(drag.handle), targets);
+          next = snapped.box;
+          guides = snapped.guides;
+        }
+        setActiveGuides(guides);
+
         setLiveOverrides({ [drag.id]: next });
         return;
       }
