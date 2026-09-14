@@ -2,3 +2,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+
+# Emitted from vite.config.ts by older tsconfig.node.json settings. Vite loads
+# vite.config.js in preference to vite.config.ts, so a stale copy silently shadows
+# the real config.
+vite.config.js
+vite.config.d.ts

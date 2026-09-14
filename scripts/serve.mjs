@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { handleGithubAuthRoute } from './githubAuthRoutes.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'dist');
 const port = Number(process.env.PORT) || 3210;
@@ -37,6 +38,8 @@ async function resolveFile(pathname) {
 
 createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
+  // Must run before the SPA fallback, which would otherwise answer /api/* with index.html.
+  if (await handleGithubAuthRoute(req, res, url.pathname)) return;
   const filePath = (await resolveFile(url.pathname)) ?? join(root, 'index.html');
   try {
     const data = await readFile(filePath);
