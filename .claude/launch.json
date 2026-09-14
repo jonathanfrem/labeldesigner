@@ -7,30 +7,6 @@
       "runtimeArgs": ["run", "dev"],
       "port": 5173,
       "autoPort": true
-    },
-    {
-      "name": "labeldesigner-dev-github",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173,
-      "autoPort": true,
-      "env": {
-        "GITHUB_CLIENT_ID": "Iv23liPLACEHOLDER",
-        "GITHUB_CLIENT_SECRET": "placeholder-not-a-real-secret",
-        "GITHUB_APP_SLUG": "label-designer-dev"
-      }
-    },
-    {
-      "name": "labeldesigner-prod-github",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "start"],
-      "port": 3210,
-      "autoPort": true,
-      "env": {
-        "GITHUB_CLIENT_ID": "Iv23liPLACEHOLDER",
-        "GITHUB_CLIENT_SECRET": "placeholder-not-a-real-secret",
-        "GITHUB_APP_SLUG": "label-designer-dev"
-      }
     }
   ]
 }
