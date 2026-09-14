@@ -28,7 +28,8 @@ jobs:
             cd /srv/labeldesigner
             git fetch origin main
             git checkout main
-            git pull --ff-only origin main
+            git reset --hard origin/main
+            git clean -fd -e node_modules -e dist
             npm ci
             npm run lint
             npx vitest run --passWithNoTests
