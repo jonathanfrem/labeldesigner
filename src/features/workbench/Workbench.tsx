@@ -4,9 +4,11 @@ import { derivedMargins } from '../../model/geometry';
 import { SheetPreview } from '../../render/svg/SheetPreview';
 import { renderEmptySheetPdf } from '../../render/pdf/sheet';
 import { renderCalibrationSheetPdf } from '../../render/pdf/calibration';
+import { renderLabelSheetPdf } from '../../render/pdf/document';
 import { NumberField } from '../../components/NumberField';
 import { Editor } from '../editor/Editor';
 import { useProjectSessionContext } from '../../state/projectSessionContext';
+import { useDocumentStore } from '../../state/documentStore';
 
 const REFERENCE_LENGTH_MM = 100;
 
@@ -48,9 +50,13 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
   const [tab, setTab] = useState<WorkbenchTab>(autoOpenCalibration ? 'print' : 'design');
   const [calibration, setCalibration] = useState<MeasuredCalibration>(IDENTITY_CALIBRATION);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
+  const [startAtLabel, setStartAtLabel] = useState(1);
+  const [showOutlines, setShowOutlines] = useState(false);
   const { pendingMismatch, addEmbeddedAsCustomTemplate, updateToLibraryTemplate, dismissMismatch } = useProjectSessionContext();
+  const activeDocument = useDocumentStore((s) => s.document);
 
   const margins = useMemo(() => derivedMargins(template), [template]);
+  const totalSlots = template.columns * template.rows;
 
   const profile = useMemo(
     () => ({
@@ -91,6 +97,14 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
   async function handleExportCalibrationSheet() {
     const { bytes } = await renderCalibrationSheetPdf(template, profile);
     showPdf(bytes, `${template.code ?? template.id}-calibration-sheet.pdf`);
+  }
+
+  async function handleExportLabelSheet() {
+    const bytes = await renderLabelSheetPdf(activeDocument, profile, {
+      startIndex: Math.max(0, startAtLabel - 1),
+      showOutlines,
+    });
+    showPdf(bytes, `${activeDocument.name || template.code || template.id}-sheet.pdf`);
   }
 
   useEffect(() => {
@@ -187,7 +201,26 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
         </section>
 
         <section className="space-y-2">
-          <SectionLabel>Print</SectionLabel>
+          <SectionLabel>Print your label</SectionLabel>
+          <NumberField
+            label={`Start at label (1–${totalSlots})`}
+            value={startAtLabel}
+            onChange={(v) => setStartAtLabel(Math.min(totalSlots, Math.max(1, Math.round(v))))}
+          />
+          <label className="flex items-center gap-2 text-xs text-ink-secondary">
+            <input type="checkbox" checked={showOutlines} onChange={(e) => setShowOutlines(e.target.checked)} />
+            Draw label outlines (for a test print on plain paper)
+          </label>
+          <button
+            className="w-full bg-accent/20 hover:bg-accent/30 rounded px-3 py-2 text-sm text-ink border border-accent/40"
+            onClick={handleExportLabelSheet}
+          >
+            Export sheet PDF
+          </button>
+        </section>
+
+        <section className="space-y-2">
+          <SectionLabel>Blank sheets</SectionLabel>
           <button className="w-full bg-panel-raised hover:bg-line rounded px-3 py-2 text-sm text-ink border border-line" onClick={handleExportEmptySheet}>
             Export empty sheet PDF
           </button>

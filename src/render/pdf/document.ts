@@ -1,4 +1,4 @@
-import { clip, endPath, fill, popGraphicsState, pushGraphicsState, setFillingColor, type PDFPage } from 'pdf-lib';
+import { clip, endPath, fill, PDFDocument, popGraphicsState, pushGraphicsState, setFillingColor, type PDFPage } from 'pdf-lib';
 import type { LabelDocument, PrinterProfile } from '../../model/types';
 import { IDENTITY_PRINTER_PROFILE } from '../../model/types';
 import type { Rect } from '../../model/geometry';
@@ -11,6 +11,8 @@ import { embedImagesForElements, type EmbeddedImages } from './images';
 import { buildLabelClipPath } from './labelClip';
 import { mapPath, pathToPdfPathOperators } from './path';
 import { applyProfileToRect } from './sheet';
+import { drawEllipseOutline, drawRectOutline, drawRoundedRectOutline } from './shapeOutline';
+import { mmToPt } from './units';
 
 /**
  * Draws one label instance — background then elements, in array order —
@@ -64,4 +66,57 @@ export async function drawDocumentSheet(
   for (const slot of allSlots(doc.template)) {
     drawLabelDocument(page, doc, applyProfileToRect(slot, profile), pageHeightMm, fonts, images);
   }
+}
+
+export interface LabelSheetPrintOptions {
+  /** 0-based index of the first slot to fill — lets printing resume on a partially used sheet (PLAN §7). */
+  startIndex?: number;
+  /** Draws every slot's outline regardless of whether it's filled — for a test print on plain paper. Off by default. */
+  showOutlines?: boolean;
+}
+
+/**
+ * The print pipeline's entry point (PLAN §7): a standalone A4 PDF with this
+ * document repeated into every template slot from `startIndex` onward.
+ * Building the PDFDocument here (rather than in the caller) keeps every
+ * "export a full sheet" path — this one, `renderEmptySheetPdf`, the
+ * calibration sheet — shaped the same way: one function in, PDF bytes out.
+ */
+export async function renderLabelSheetPdf(
+  doc: LabelDocument,
+  profile: PrinterProfile = IDENTITY_PRINTER_PROFILE,
+  options: LabelSheetPrintOptions = {},
+): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([mmToPt(doc.template.pageSize.width), mmToPt(doc.template.pageSize.height)]);
+  const pageHeightMm = doc.template.pageSize.height;
+
+  const [fonts, images] = await Promise.all([
+    embedFontsForElements(pdf, doc.elements),
+    embedImagesForElements(pdf, doc.elements, doc.assets),
+  ]);
+
+  const startIndex = options.startIndex ?? 0;
+  allSlots(doc.template).forEach((slot, index) => {
+    const calibrated = applyProfileToRect(slot, profile);
+    if (options.showOutlines) {
+      switch (doc.template.shape) {
+        case 'rounded':
+          drawRoundedRectOutline(page, calibrated, doc.template.cornerRadius ?? 0, pageHeightMm);
+          break;
+        case 'ellipse':
+          drawEllipseOutline(page, calibrated, pageHeightMm);
+          break;
+        case 'rect':
+        default:
+          drawRectOutline(page, calibrated, pageHeightMm);
+          break;
+      }
+    }
+    if (index >= startIndex) {
+      drawLabelDocument(page, doc, calibrated, pageHeightMm, fonts, images);
+    }
+  });
+
+  return pdf.save({ useObjectStreams: false });
 }
