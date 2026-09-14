@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { StoredProject } from '../../storage/projectStorageAdapter';
+import type { RemoteProjectSummary } from '../../cloud/github/githubProjectSync';
+import type { GithubCloudApi } from '../../cloud/github/useGithubCloud';
+import { GithubPanel } from '../cloud/GithubPanel';
 
 export interface ProjectLibraryProps {
   projects: StoredProject[];
@@ -8,6 +11,12 @@ export interface ProjectLibraryProps {
   onOpenFromFile: () => Promise<void>;
   onDelete: (id: string) => void;
   onNewProject: () => void;
+  cloud: GithubCloudApi;
+  remoteProjects: RemoteProjectSummary[];
+  remoteLoading: boolean;
+  remoteError: string | null;
+  onOpenRemote: (path: string) => Promise<void>;
+  onReloadRemote: () => void;
 }
 
 function formatUpdatedAt(ms: number): string {
@@ -17,7 +26,20 @@ function formatUpdatedAt(ms: number): string {
   });
 }
 
-export function ProjectLibrary({ projects, loading, onOpen, onOpenFromFile, onDelete, onNewProject }: ProjectLibraryProps) {
+export function ProjectLibrary({
+  projects,
+  loading,
+  onOpen,
+  onOpenFromFile,
+  onDelete,
+  onNewProject,
+  cloud,
+  remoteProjects,
+  remoteLoading,
+  remoteError,
+  onOpenRemote,
+  onReloadRemote,
+}: ProjectLibraryProps) {
   const [query, setQuery] = useState('');
   const [openError, setOpenError] = useState<string | null>(null);
 
@@ -27,12 +49,27 @@ export function ProjectLibrary({ projects, loading, onOpen, onOpenFromFile, onDe
     return projects.filter((p) => p.name.toLowerCase().includes(q) || p.document.template.name.toLowerCase().includes(q));
   }, [projects, query]);
 
+  const filteredRemote = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return remoteProjects;
+    return remoteProjects.filter((r) => r.displayName.toLowerCase().includes(q));
+  }, [remoteProjects, query]);
+
   async function handleOpenFromFile() {
     setOpenError(null);
     try {
       await onOpenFromFile();
     } catch (err) {
       setOpenError(err instanceof Error ? err.message : 'Could not open that file.');
+    }
+  }
+
+  async function handleOpenRemote(path: string) {
+    setOpenError(null);
+    try {
+      await onOpenRemote(path);
+    } catch (err) {
+      setOpenError(err instanceof Error ? err.message : 'Could not open that project from GitHub.');
     }
   }
 
@@ -65,6 +102,11 @@ export function ProjectLibrary({ projects, loading, onOpen, onOpenFromFile, onDe
                         &#128190;
                       </span>
                     )}
+                    {p.remote && (
+                      <span className="text-ink-tertiary shrink-0" title={`Saves to ${p.remote.owner}/${p.remote.repo}`}>
+                        &#9729;
+                      </span>
+                    )}
                   </span>
                   <span className="text-ink-tertiary text-xs">
                     {p.document.template.name} &middot; {formatUpdatedAt(p.updatedAt)}
@@ -74,6 +116,37 @@ export function ProjectLibrary({ projects, loading, onOpen, onOpenFromFile, onDe
             ))}
           {!loading && filtered.length === 0 && <li className="px-3 py-4 text-sm text-ink-tertiary">No saved projects yet.</li>}
         </ul>
+
+        {cloud.repo && (
+          <div className="border-t border-line">
+            <div className="px-3 py-2 flex items-center gap-2">
+              <span className="text-xs text-ink-tertiary uppercase tracking-wide truncate flex-1">
+                {cloud.repo.owner}/{cloud.repo.repo}
+              </span>
+              <button className="text-xs text-ink-tertiary hover:text-ink" onClick={onReloadRemote} title="Reload from GitHub">
+                Refresh
+              </button>
+            </div>
+            <ul className="max-h-48 overflow-y-auto">
+              {remoteLoading && <li className="px-3 pb-2 text-xs text-ink-tertiary">Loading from GitHub…</li>}
+              {!remoteLoading &&
+                filteredRemote.map((r) => (
+                  <li key={r.path}>
+                    <button
+                      className="w-full text-left px-3 py-1.5 text-sm text-ink hover:bg-panel-raised/60 truncate"
+                      onClick={() => handleOpenRemote(r.path)}
+                    >
+                      &#9729; {r.displayName}
+                    </button>
+                  </li>
+                ))}
+              {!remoteLoading && filteredRemote.length === 0 && !remoteError && (
+                <li className="px-3 pb-2 text-xs text-ink-tertiary">Nothing saved to this repository yet.</li>
+              )}
+              {remoteError && <li className="px-3 pb-2 text-xs text-danger">{remoteError}</li>}
+            </ul>
+          </div>
+        )}
 
         <div className="p-3 border-t border-line space-y-2">
           <button
@@ -87,6 +160,8 @@ export function ProjectLibrary({ projects, loading, onOpen, onOpenFromFile, onDe
           </button>
           {openError && <p className="text-xs text-danger">{openError}</p>}
         </div>
+
+        <GithubPanel cloud={cloud} onRepoChanged={onReloadRemote} />
       </div>
 
       <div className="flex-1 flex flex-col min-h-0">
