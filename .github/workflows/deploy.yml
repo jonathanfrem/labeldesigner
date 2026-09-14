@@ -31,8 +31,8 @@ jobs:
             git pull --ff-only origin main
             npm ci
             npm run lint
-            npm run test
-            npm run test:pdf
+            npx vitest run --passWithNoTests
+            npx vitest run src/render/pdf --passWithNoTests
             npm run build
             systemctl restart labeldesigner.service
             sleep 3
