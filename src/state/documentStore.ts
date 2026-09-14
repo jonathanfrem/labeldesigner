@@ -55,6 +55,7 @@ interface DocumentState {
   setTemplate: (template: SheetTemplate) => void;
   /** Live-editable per-document override of the template's safe-print margin; part of the embedded template, so it round-trips through save/load. */
   setSafeMarginMm: (mm: Mm) => void;
+  renameDocument: (name: string) => void;
 }
 
 /**
@@ -161,6 +162,12 @@ export const useDocumentStore = create<DocumentState>()(
       setSafeMarginMm: (mm) => {
         set((state) => {
           state.document.template.safeMarginMm = mm;
+        });
+      },
+
+      renameDocument: (name) => {
+        set((state) => {
+          state.document.name = name;
         });
       },
 

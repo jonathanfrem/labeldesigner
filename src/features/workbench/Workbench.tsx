@@ -14,7 +14,6 @@ const REFERENCE_LENGTH_MM = 100;
 
 export interface WorkbenchProps {
   template: SheetTemplate;
-  onBack: () => void;
   /** Set when arriving via "Go to calibration sheet" — generates the calibration PDF immediately. */
   autoOpenCalibration?: boolean;
 }
@@ -46,7 +45,7 @@ const IDENTITY_CALIBRATION: MeasuredCalibration = {
 
 type WorkbenchTab = 'design' | 'print';
 
-export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchProps) {
+export function Workbench({ template, autoOpenCalibration }: WorkbenchProps) {
   const [tab, setTab] = useState<WorkbenchTab>(autoOpenCalibration ? 'print' : 'design');
   const [calibration, setCalibration] = useState<MeasuredCalibration>(IDENTITY_CALIBRATION);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
@@ -54,6 +53,7 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
   const [showOutlines, setShowOutlines] = useState(false);
   const { pendingMismatch, addEmbeddedAsCustomTemplate, updateToLibraryTemplate, dismissMismatch } = useProjectSessionContext();
   const activeDocument = useDocumentStore((s) => s.document);
+  const renameDocument = useDocumentStore((s) => s.renameDocument);
 
   const margins = useMemo(() => derivedMargins(template), [template]);
   const totalSlots = template.columns * template.rows;
@@ -115,10 +115,7 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="shrink-0 flex items-center gap-4 px-4 h-10 border-b border-line bg-panel">
-        <button className="text-xs text-ink-secondary hover:text-ink" onClick={onBack}>
-          Back to projects
-        </button>
-        <span className="text-xs text-ink-tertiary">{template.name}</span>
+        <EditableDocumentName name={activeDocument.name} onRename={renameDocument} />
         <div className="ml-auto flex gap-1">
           <TabButton active={tab === 'design'} onClick={() => setTab('design')}>
             Design
@@ -264,6 +261,56 @@ export function Workbench({ template, onBack, autoOpenCalibration }: WorkbenchPr
         </div>
       )}
     </div>
+  );
+}
+
+function EditableDocumentName({ name, onRename }: { name: string; onRename: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+
+  function startEditing() {
+    setDraft(name);
+    setEditing(true);
+  }
+
+  function commit() {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== name) onRename(trimmed);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="text"
+        className="text-xs text-ink bg-panel-raised border border-accent rounded px-1.5 py-0.5 focus:outline-none"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          else if (e.key === 'Escape') setEditing(false);
+        }}
+      />
+    );
+  }
+
+  return (
+    <button className="flex items-center gap-1.5 text-xs text-ink-tertiary hover:text-ink group" onClick={startEditing} title="Rename">
+      {name}
+      <svg
+        viewBox="0 0 16 16"
+        width="12"
+        height="12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        className="opacity-0 group-hover:opacity-70"
+      >
+        <path d="M11.3 2.3a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4l-7.2 7.2-3 .8.8-3z" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
   );
 }
 

@@ -163,7 +163,7 @@ export default function App() {
         )}
 
         {view.type === 'workbench' && (
-          <Workbench template={view.template} autoOpenCalibration={view.autoOpenCalibration} onBack={() => goTo({ type: 'projects' })} />
+          <Workbench template={view.template} autoOpenCalibration={view.autoOpenCalibration} />
         )}
       </div>
     </ProjectSessionContext.Provider>
