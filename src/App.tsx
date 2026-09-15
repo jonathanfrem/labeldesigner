@@ -31,7 +31,13 @@ type View =
 
 export default function App() {
   const { allTemplates, saveCustom, setCustomVerified } = useTemplateRepository(adapter);
-  const { projects, loading: projectsLoading, removeProject, refresh: refreshProjects } = useProjectRepository(projectAdapter);
+  const {
+    projects,
+    loading: projectsLoading,
+    error: projectsError,
+    removeProject,
+    refresh: refreshProjects,
+  } = useProjectRepository(projectAdapter);
   const [view, setView] = useState<View>({ type: 'projects' });
   const [showAbout, setShowAbout] = useState(false);
 
@@ -195,6 +201,7 @@ export default function App() {
           <ProjectLibrary
             projects={projects}
             loading={projectsLoading}
+            error={projectsError}
             onOpen={handleOpenProject}
             onOpenFromFile={handleOpenFromFile}
             onDelete={handleDeleteProject}
