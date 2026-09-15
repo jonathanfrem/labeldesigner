@@ -1,7 +1,8 @@
 # Label Designer — Build Plan
 
 A browser-based label design and sheet-printing tool. Replaces BarTender Designer for
-A4 die-cut label stock. Fully local, no backend, no accounts, no database.
+A4 die-cut label stock. Fully local by default, no accounts, no database. The only
+server-side component is the opt-in GitHub cloud save token endpoint (§2.7).
 
 ---
 
@@ -20,10 +21,16 @@ artwork lands inside the die-cuts. Aimed at small producers using generic label 
 
 These are settled. Do not relitigate them during implementation.
 
-### 2.1 Static SPA, zero backend
+### 2.1 Static SPA, no backend on the core path
 Vite + React + TypeScript, deployable as static files (Cloudflare Pages / GitHub Pages).
-No server, no API, no auth, no analytics, no telemetry, no external font/CDN requests at
-runtime. Everything the app needs ships in the bundle.
+No analytics, no telemetry, no external font/CDN requests at runtime. Everything the
+editor needs ships in the bundle: designing, rendering and exporting a print-ready PDF
+must work with the network unplugged.
+
+The one exception is the opt-in GitHub cloud save (§2.7). It adds a token-exchange
+endpoint to the deployment, but the endpoint holds no user data, has no database, and is
+never contacted unless the user connects a GitHub account. A deployment without it is
+still a complete, fully functional app — the feature hides itself when unconfigured.
 
 ### 2.2 Print via generated PDF, never via CSS `@media print`
 The browser print pipeline injects margins, applies "shrink to fit", and behaves
@@ -68,10 +75,11 @@ scattered through components.
 | Open | `showOpenFilePicker` | `<input type="file">` |
 | Autosave target | IndexedDB + file handle | IndexedDB only |
 | Open `.lbl.json` by double-click | PWA file handler | n/a |
+| Cloud save | GitHub repo (§2.7) | GitHub repo (§2.7) — no capability difference |
 
 Safari evicts IndexedDB after ~7 days of no visits and doesn't honour
 `navigator.storage.persist()` reliably. Show a persistent, non-nagging reminder to export
-when running without a file handle.
+when running without a file handle or a linked GitHub repo.
 
 ### 2.6 Bundled open-licence fonts only
 No Google Fonts CDN (a runtime request leaks every user's IP to Google, which German
@@ -86,6 +94,36 @@ Apache-2.0, so ship the files.
 - Lazy-load font files on demand; don't ship 30 families in the initial payload.
 - pdf-lib + `@pdf-lib/fontkit` subsets on embed, so output PDFs stay small.
 - Record each font's licence in `fonts/LICENSES.md` and surface it in an About panel.
+
+### 2.7 Cloud save is GitHub, opt-in, and a save *target* — not sync
+Projects otherwise live only in the browser, so a cleared site-data or a Safari eviction
+loses work. The user points the app at a private GitHub repo and Save writes a commit:
+durable storage and version history without us running a database. Setup and operations
+detail: `docs/GITHUB-SETUP.md`.
+
+The shape of this is forced by one fact. `github.com/login/oauth/access_token` sends **no
+CORS headers** — true for the web flow *and* the device flow — while `api.github.com`
+does. So the browser can do every file operation itself, but cannot obtain a token
+without a server. Hence the split (the same one draw.io uses):
+
+- **Server** (`scripts/githubAuthRoutes.mjs`, mounted by `serve.mjs` and the Vite dev
+  server): three routes that hold the OAuth client secret and do nothing else.
+- **Browser** (`src/cloud/github/`): all reads and writes, straight to `api.github.com`.
+
+Locked decisions:
+
+| | |
+|---|---|
+| Identity | A **GitHub App** (not an OAuth App) — Contents + Metadata, on user-selected repos |
+| Tokens | Expiring: 8h user token, 6-month refresh token, refreshed single-flight |
+| Token storage | IndexedDB. It must be JS-readable — the browser sets its own `Authorization` header. An httpOnly cookie would force every file operation through the server, which is a far bigger thing than this exception permits. |
+| Repo layout | `projects/<slug>-<shortid>.lbl.json`, `templates/<slug>-<shortid>.json` |
+| Write trigger | **Explicit save only.** Autosave stays IndexedDB-only — committing on a 2s debounce would bury the history and burn the rate limit. |
+| Conflicts | Optimistic concurrency on the blob `sha`. On a stale sha, ask the user; never merge. A label document is not text-mergeable. |
+
+Serialisation is the existing `serializeProject` / `serializeTemplate` unchanged, so a
+file in the repo and a file downloaded from "Save As" are byte-identical and freely
+interchangeable.
 
 ---
 
@@ -553,9 +591,11 @@ onboarding for a first-time user, Norwegian and English UI strings.
 
 ## 13. Non-goals for v1
 
-No backend, accounts, database or cloud sync. No runtime external requests of any kind. No
-EAN-13/GS1 or other retail symbologies. No thermal/roll printers (Zebra, Brother QL). No
-collaborative editing. No template auto-detection from a scan. No mobile editor.
+No accounts, no database, no collaborative editing. No *sync* — GitHub cloud save (§2.7)
+is a manual save target, not a background two-way reconciler: there is no offline write
+queue, no auto-pull, and no merge. No runtime external requests on the core editing and
+printing path. No EAN-13/GS1 or other retail symbologies. No thermal/roll printers
+(Zebra, Brother QL). No template auto-detection from a scan. No mobile editor.
 
 Sheets are assumed to be a **single uniform grid**. Mixed-size sheets and multi-block
 layouts (a row of large labels above a block of small ones) are out of scope. Rectangular,

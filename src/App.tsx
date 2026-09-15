@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SheetTemplate } from './model/types';
+import { useGithubCloud } from './cloud/github/useGithubCloud';
+import { listRemoteProjects, type RemoteProjectSummary } from './cloud/github/githubProjectSync';
+import { ConflictDialog } from './features/cloud/ConflictDialog';
 import { IndexedDbTemplateStorageAdapter } from './storage/indexedDbTemplateStorageAdapter';
 import { IndexedDbProjectStorageAdapter } from './storage/indexedDbProjectStorageAdapter';
 import { useTemplateRepository } from './storage/useTemplateRepository';
@@ -32,8 +35,44 @@ export default function App() {
   const [view, setView] = useState<View>({ type: 'projects' });
   const [showAbout, setShowAbout] = useState(false);
 
+  const cloud = useGithubCloud();
+  const [remoteProjects, setRemoteProjects] = useState<RemoteProjectSummary[]>([]);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+
   const resolveTemplate = useMemo(() => (id: string) => allTemplates.find((t) => t.id === id), [allTemplates]);
-  const session = useProjectSession(projectAdapter, resolveTemplate, saveCustom);
+  const session = useProjectSession(projectAdapter, resolveTemplate, saveCustom, cloud);
+
+  const reloadRemote = useCallback(async () => {
+    const { client, repo } = cloud;
+    if (!client || !repo) {
+      setRemoteProjects([]);
+      return;
+    }
+    setRemoteLoading(true);
+    setRemoteError(null);
+    try {
+      setRemoteProjects(await listRemoteProjects(client, repo));
+    } catch (err) {
+      setRemoteError(err instanceof Error ? err.message : 'Could not list projects on GitHub.');
+    } finally {
+      setRemoteLoading(false);
+    }
+  }, [cloud]);
+
+  // Keyed on the repo and login rather than on `cloud`, whose identity changes every render.
+  // The login matters because a session can end on its own (revoked or expired token), and
+  // the remote list must empty rather than sit there showing a repo we can no longer read.
+  const remoteKey = cloud.repo && cloud.session ? `${cloud.session.login}:${cloud.repo.owner}/${cloud.repo.repo}` : '';
+  useEffect(() => {
+    if (remoteKey) reloadRemote();
+    else {
+      setRemoteProjects([]);
+      setRemoteError(null);
+    }
+    // reloadRemote closes over `cloud` and would re-run constantly; the key is what matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteKey]);
 
   /** Guards navigation away from an unsaved workbench — a solo-user tool doesn't need more than a native confirm. */
   function goTo(next: View) {
@@ -58,6 +97,16 @@ export default function App() {
     const doc = await session.openFromFile();
     if (!doc) return; // user cancelled the picker
     goTo({ type: 'workbench', template: doc.template });
+  }
+
+  async function handleOpenRemote(path: string) {
+    const doc = await session.openFromRemote(path);
+    goTo({ type: 'workbench', template: doc.template });
+  }
+
+  /** Loading the repo's version replaces the open document in place — stay in the workbench. */
+  function handleTakeRemote() {
+    session.resolveConflictTakeRemote();
   }
 
   async function handleDeleteProject(id: string) {
@@ -150,6 +199,12 @@ export default function App() {
             onOpenFromFile={handleOpenFromFile}
             onDelete={handleDeleteProject}
             onNewProject={() => goTo({ type: 'newProject' })}
+            cloud={cloud}
+            remoteProjects={remoteProjects}
+            remoteLoading={remoteLoading}
+            remoteError={remoteError}
+            onOpenRemote={handleOpenRemote}
+            onReloadRemote={reloadRemote}
           />
         )}
 
@@ -164,6 +219,16 @@ export default function App() {
 
         {view.type === 'workbench' && (
           <Workbench template={view.template} autoOpenCalibration={view.autoOpenCalibration} />
+        )}
+
+        {session.pendingConflict && (
+          <ConflictDialog
+            conflict={session.pendingConflict}
+            busy={session.isSaving}
+            onOverwrite={session.resolveConflictOverwrite}
+            onTakeRemote={handleTakeRemote}
+            onCancel={session.dismissConflict}
+          />
         )}
       </div>
     </ProjectSessionContext.Provider>

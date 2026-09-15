@@ -1,8 +1,15 @@
 const DB_NAME = 'labeldesigner';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const CUSTOM_TEMPLATES_STORE = 'customTemplates';
 export const PROJECTS_STORE = 'projects';
+/**
+ * Small singleton records keyed by name — the GitHub token and the linked repo
+ * (`github.auth`, `github.repo`). A keyed store rather than localStorage so it shares the
+ * projects' transaction and eviction fate: a browser that still has the user's projects
+ * still has the token that syncs them.
+ */
+export const SETTINGS_STORE = 'settings';
 /** Removed: verified-overrides for built-ins. Dropped in the v2 upgrade so no stale record can shadow templates.json. */
 const LEGACY_VERIFIED_OVERRIDES_STORE = 'verifiedOverrides';
 
@@ -26,6 +33,9 @@ export function openDb(): Promise<IDBDatabase> {
         }
         if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
           db.createObjectStore(PROJECTS_STORE, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
+          db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' });
         }
         if (db.objectStoreNames.contains(LEGACY_VERIFIED_OVERRIDES_STORE)) {
           db.deleteObjectStore(LEGACY_VERIFIED_OVERRIDES_STORE);

@@ -5,7 +5,16 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
-    "strict": true
+    "allowJs": true,
+    "strict": true,
+    // Emit into a throwaway directory. This project exists to type-check vite.config.ts, not
+    // to produce anything — and emitting beside the source produced a vite.config.js that
+    // Vite then loaded *instead of* vite.config.ts, since its resolution order puts .js
+    // first. Config edits silently had no effect until that artifact was regenerated.
+    // A composite project can't set noEmit ("may not disable emit", TS6310), so redirect it.
+    "outDir": "./node_modules/.tmp/tsconfig-node"
   },
-  "include": ["vite.config.ts"]
+  // githubAuthRoutes.mjs is imported by vite.config.ts, so a composite project has to list
+  // it explicitly (TS6307) — it can't be reached implicitly through the import.
+  "include": ["vite.config.ts", "scripts/githubAuthRoutes.mjs"]
 }

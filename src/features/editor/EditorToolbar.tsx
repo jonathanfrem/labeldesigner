@@ -22,18 +22,19 @@ export function EditorToolbar() {
   const setContentRotation = useDocumentStore((s) => s.setContentRotation);
   const safeMarginMm = useDocumentStore((s) => resolveSafeMarginMm(s.document.template));
   const setSafeMarginMm = useDocumentStore((s) => s.setSafeMarginMm);
-  const { saveToFile, isDirty, hasFileHandle } = useProjectSessionContext();
+  const { save, saveToRemote, isDirty, hasFileHandle, remote, canSaveToRemote, isSaving, saveError } =
+    useProjectSessionContext();
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        saveToFile();
+        save();
       }
     }
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [saveToFile]);
+  }, [save]);
 
   return (
     <div className="flex items-center gap-3 px-3 py-1.5 border-b border-line bg-panel text-xs">
@@ -80,13 +81,60 @@ export function EditorToolbar() {
       </label>
 
       <div className="ml-auto flex items-center gap-2">
-        <span className="text-ink-tertiary">{isDirty ? 'Unsaved changes' : 'Saved'}</span>
-        <ToolbarButton title="Save (Ctrl+S)" disabled={!isDirty} onClick={() => saveToFile()}>
-          {hasFileHandle ? 'Save' : 'Save As…'}
+        {saveError && (
+          <span className="text-danger max-w-xs truncate" title={saveError}>
+            {saveError}
+          </span>
+        )}
+        <span className="text-ink-tertiary">{saveStatusLabel({ isSaving, isDirty, hasRemote: remote !== null })}</span>
+        {/* First commit for a project that isn't linked yet — afterwards Save covers it. */}
+        {remote === null && canSaveToRemote && (
+          <ToolbarButton title="Save this project to the connected GitHub repository" disabled={isSaving} onClick={() => saveToRemote()}>
+            Save to GitHub
+          </ToolbarButton>
+        )}
+        <ToolbarButton title={saveButtonTitle(remote !== null)} disabled={!isDirty || isSaving} onClick={() => save()}>
+          {saveButtonLabel({ isSaving, hasRemote: remote !== null, hasFileHandle })}
         </ToolbarButton>
       </div>
     </div>
   );
+}
+
+/**
+ * The save button names its destination, because where Ctrl+S writes is now a real
+ * question — a project can be linked to a repo, a file on disk, both, or neither.
+ */
+function saveButtonLabel({
+  isSaving,
+  hasRemote,
+  hasFileHandle,
+}: {
+  isSaving: boolean;
+  hasRemote: boolean;
+  hasFileHandle: boolean;
+}): string {
+  if (isSaving) return 'Saving…';
+  if (hasRemote) return hasFileHandle ? 'Save both' : 'Save to GitHub';
+  return hasFileHandle ? 'Save' : 'Save As…';
+}
+
+function saveButtonTitle(hasRemote: boolean): string {
+  return hasRemote ? 'Save to GitHub and any linked file (Ctrl+S)' : 'Save (Ctrl+S)';
+}
+
+function saveStatusLabel({
+  isSaving,
+  isDirty,
+  hasRemote,
+}: {
+  isSaving: boolean;
+  isDirty: boolean;
+  hasRemote: boolean;
+}): string {
+  if (isSaving) return 'Saving…';
+  if (isDirty) return 'Unsaved changes';
+  return hasRemote ? 'Saved to GitHub' : 'Saved';
 }
 
 function SafeMarginField({ value, onChange }: { value: number; onChange: (value: number) => void }) {

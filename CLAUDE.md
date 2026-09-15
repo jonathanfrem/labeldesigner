@@ -1,14 +1,19 @@
 # Label Designer
 
-Browser-based label design and A4 sheet-printing tool. Static SPA, no backend.
-Full spec: `docs/PLAN.md` — read it before making architectural decisions.
+Browser-based label design and A4 sheet-printing tool. Static SPA, no backend on the
+core path. Full spec: `docs/PLAN.md` — read it before making architectural decisions.
 
 ## Invariants
 
 These are settled. Do not change them without asking.
 
-1. **No backend, no network at runtime.** No API calls, no CDN fonts, no analytics,
-   no telemetry. Everything ships in the bundle.
+1. **No backend on the core path.** Editing, rendering and PDF printing must work with the
+   network unplugged and with no server beyond a static file host. No CDN fonts, no
+   analytics, no telemetry. Everything the editor needs ships in the bundle.
+   The sole exception is the opt-in GitHub cloud save (`docs/GITHUB-SETUP.md`): a
+   token-exchange endpoint that holds an OAuth client secret, stores no user data, has no
+   database, and is never contacted unless the user connects a GitHub account. Never widen
+   this exception — no other feature may require the server.
 2. **Printing goes through generated PDF, never CSS `@media print`.** pdf-lib only.
 3. **One document model in millimetres, two renderers** (SVG for screen, PDF for print).
    Any feature that can't be expressed in both doesn't ship.
