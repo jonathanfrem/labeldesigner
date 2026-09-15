@@ -7,6 +7,10 @@
     "allowSyntheticDefaultImports": true,
     "allowJs": true,
     "strict": true,
+    // Explicit rather than relying on auto-include, and scoped here rather than at the repo
+    // root, so process/Buffer/etc. are available to vite.config.ts and githubAuthRoutes.mjs
+    // without leaking into browser-code type-checking (see tsconfig.json's "types": []).
+    "types": ["node"],
     // Emit into a throwaway directory. This project exists to type-check vite.config.ts, not
     // to produce anything — and emitting beside the source produced a vite.config.js that
     // Vite then loaded *instead of* vite.config.ts, since its resolution order puts .js
