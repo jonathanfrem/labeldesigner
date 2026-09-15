@@ -7,6 +7,8 @@ import { GithubPanel } from '../cloud/GithubPanel';
 export interface ProjectLibraryProps {
   projects: StoredProject[];
   loading: boolean;
+  /** Set when loading failed rather than just being slow — e.g. a blocked IndexedDB upgrade. */
+  error: string | null;
   onOpen: (project: StoredProject) => void;
   onOpenFromFile: () => Promise<void>;
   onDelete: (id: string) => void;
@@ -29,6 +31,7 @@ function formatUpdatedAt(ms: number): string {
 export function ProjectLibrary({
   projects,
   loading,
+  error,
   onOpen,
   onOpenFromFile,
   onDelete,
@@ -87,8 +90,20 @@ export function ProjectLibrary({
         </div>
 
         <ul className="flex-1 overflow-y-auto">
-          {loading && <li className="px-3 py-4 text-sm text-ink-tertiary">Loading…</li>}
+          {loading && !error && <li className="px-3 py-4 text-sm text-ink-tertiary">Loading…</li>}
+          {error && (
+            <li className="px-3 py-4 text-sm space-y-2">
+              <p className="text-danger">{error}</p>
+              <button
+                className="bg-panel-raised hover:bg-line rounded px-2 py-1 text-xs text-ink border border-line"
+                onClick={() => window.location.reload()}
+              >
+                Reload
+              </button>
+            </li>
+          )}
           {!loading &&
+            !error &&
             filtered.map((p) => (
               <li key={p.id}>
                 <button
@@ -114,7 +129,9 @@ export function ProjectLibrary({
                 </button>
               </li>
             ))}
-          {!loading && filtered.length === 0 && <li className="px-3 py-4 text-sm text-ink-tertiary">No saved projects yet.</li>}
+          {!loading && !error && filtered.length === 0 && (
+            <li className="px-3 py-4 text-sm text-ink-tertiary">No saved projects yet.</li>
+          )}
         </ul>
 
         {/* Both, not just the repo: the repo choice is remembered across a dropped session,

@@ -4,11 +4,21 @@ import type { ProjectStorageAdapter, StoredProject } from './projectStorageAdapt
 export function useProjectRepository(adapter: ProjectStorageAdapter) {
   const [projects, setProjects] = useState<StoredProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const all = await adapter.listProjects();
-    setProjects(all);
-    setLoading(false);
+    setError(null);
+    try {
+      const all = await adapter.listProjects();
+      setProjects(all);
+    } catch (err) {
+      // Without this, a rejected listProjects() (e.g. a blocked IndexedDB upgrade in
+      // db.ts) left `loading` stuck at true forever — an infinite "Loading…" with no
+      // error and no way out short of the user guessing to close other tabs.
+      setError(err instanceof Error ? err.message : 'Could not load your projects.');
+    } finally {
+      setLoading(false);
+    }
   }, [adapter]);
 
   useEffect(() => {
@@ -33,5 +43,5 @@ export function useProjectRepository(adapter: ProjectStorageAdapter) {
     [adapter, refresh],
   );
 
-  return { projects: sorted, loading, saveProject, removeProject, refresh };
+  return { projects: sorted, loading, error, saveProject, removeProject, refresh };
 }

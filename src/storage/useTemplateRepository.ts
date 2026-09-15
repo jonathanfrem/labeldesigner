@@ -8,11 +8,20 @@ export const builtInTemplates = templatesData as SheetTemplate[];
 export function useTemplateRepository(adapter: TemplateStorageAdapter) {
   const [customTemplates, setCustomTemplates] = useState<SheetTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const custom = await adapter.listCustomTemplates();
-    setCustomTemplates(custom);
-    setLoading(false);
+    setError(null);
+    try {
+      const custom = await adapter.listCustomTemplates();
+      setCustomTemplates(custom);
+    } catch (err) {
+      // See useProjectRepository.ts — a rejected read (e.g. a blocked IndexedDB upgrade)
+      // must not leave `loading` stuck true forever with no way out.
+      setError(err instanceof Error ? err.message : 'Could not load your custom templates.');
+    } finally {
+      setLoading(false);
+    }
   }, [adapter]);
 
   useEffect(() => {
@@ -48,5 +57,5 @@ export function useTemplateRepository(adapter: TemplateStorageAdapter) {
     [adapter, customTemplates, refresh],
   );
 
-  return { allTemplates, customTemplates, loading, saveCustom, removeCustom, setCustomVerified };
+  return { allTemplates, customTemplates, loading, error, saveCustom, removeCustom, setCustomVerified };
 }
