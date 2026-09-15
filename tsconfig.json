@@ -5,6 +5,11 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
+    // Without this, @types/node (needed by tsconfig.node.json for vite.config.ts) leaks its
+    // ambient globals — process, Buffer, require — into every browser file's type-checking
+    // too, since TS auto-includes every @types/* package it finds by default. That would
+    // silently mask a browser file accidentally using a Node-only API instead of erroring.
+    "types": [],
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
