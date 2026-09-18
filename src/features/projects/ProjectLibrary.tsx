@@ -11,7 +11,8 @@ export interface ProjectLibraryProps {
   error: string | null;
   onOpen: (project: StoredProject) => void;
   onOpenFromFile: () => Promise<void>;
-  onDelete: (id: string) => void;
+  onDelete: (project: StoredProject) => Promise<void>;
+  onDeleteRemote: (remote: RemoteProjectSummary) => Promise<void>;
   onNewProject: () => void;
   cloud: GithubCloudApi;
   remoteProjects: RemoteProjectSummary[];
@@ -40,6 +41,7 @@ export function ProjectLibrary({
   onOpen,
   onOpenFromFile,
   onDelete,
+  onDeleteRemote,
   onNewProject,
   cloud,
   remoteProjects,
@@ -86,6 +88,30 @@ export function ProjectLibrary({
       await onOpenRemote(path);
     } catch (err) {
       setOpenError(err instanceof Error ? err.message : 'Could not open that project from GitHub.');
+    }
+  }
+
+  async function handleDeleteLocal(project: StoredProject) {
+    const name = project.name || 'Untitled project';
+    const message = project.remote
+      ? `Delete "${name}"? This removes it from this device and from ${project.remote.owner}/${project.remote.repo} on GitHub. This can't be undone.`
+      : `Delete "${name}"? This can't be undone.`;
+    if (!window.confirm(message)) return;
+    setOpenError(null);
+    try {
+      await onDelete(project);
+    } catch (err) {
+      setOpenError(err instanceof Error ? err.message : 'Could not delete that project.');
+    }
+  }
+
+  async function handleDeleteRemote(remote: RemoteProjectSummary) {
+    if (!window.confirm(`Delete "${remote.displayName}" from GitHub? This can't be undone.`)) return;
+    setOpenError(null);
+    try {
+      await onDeleteRemote(remote);
+    } catch (err) {
+      setOpenError(err instanceof Error ? err.message : 'Could not delete that project from GitHub.');
     }
   }
 
@@ -204,10 +230,7 @@ export function ProjectLibrary({
                           </button>
                           <button
                             className="text-danger hover:underline text-sm px-2"
-                            onClick={() => {
-                              if (window.confirm(`Delete "${entry.project.name || 'Untitled project'}"? This can't be undone.`))
-                                onDelete(entry.project.id);
-                            }}
+                            onClick={() => handleDeleteLocal(entry.project)}
                           >
                             Delete
                           </button>
@@ -230,6 +253,12 @@ export function ProjectLibrary({
                             onClick={() => handleOpenRemote(entry.remote.path)}
                           >
                             Open
+                          </button>
+                          <button
+                            className="text-danger hover:underline text-sm px-2"
+                            onClick={() => handleDeleteRemote(entry.remote)}
+                          >
+                            Delete
                           </button>
                         </div>
                       </li>

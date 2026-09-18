@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SheetTemplate } from './model/types';
 import { useGithubCloud } from './cloud/github/useGithubCloud';
-import { listRemoteProjects, type RemoteProjectSummary } from './cloud/github/githubProjectSync';
+import { deleteRemoteProject, listRemoteProjects, type RemoteProjectSummary } from './cloud/github/githubProjectSync';
 import { ConflictDialog } from './features/cloud/ConflictDialog';
 import { IndexedDbTemplateStorageAdapter } from './storage/indexedDbTemplateStorageAdapter';
 import { IndexedDbProjectStorageAdapter } from './storage/indexedDbProjectStorageAdapter';
@@ -115,8 +115,18 @@ export default function App() {
     session.resolveConflictTakeRemote();
   }
 
-  async function handleDeleteProject(id: string) {
-    await removeProject(id);
+  async function handleDeleteProject(project: StoredProject) {
+    if (project.remote && cloud.client) {
+      await deleteRemoteProject(cloud.client, project.remote);
+      await reloadRemote();
+    }
+    await removeProject(project.id);
+  }
+
+  async function handleDeleteRemoteProject(remote: RemoteProjectSummary) {
+    if (!cloud.client || !cloud.repo) return;
+    await cloud.client.deleteFile(cloud.repo, remote.path, `Delete ${remote.displayName}`, remote.sha);
+    await reloadRemote();
   }
 
   function handleCreateWithTemplate(name: string, template: SheetTemplate) {
@@ -205,6 +215,7 @@ export default function App() {
             onOpen={handleOpenProject}
             onOpenFromFile={handleOpenFromFile}
             onDelete={handleDeleteProject}
+            onDeleteRemote={handleDeleteRemoteProject}
             onNewProject={() => goTo({ type: 'newProject' })}
             cloud={cloud}
             remoteProjects={remoteProjects}
