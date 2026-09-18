@@ -70,16 +70,20 @@ export function GithubPanel({ cloud, onRepoChanged }: GithubPanelProps) {
     }
   }
 
-  if (!cloud.available) return null;
+  if (!cloud.available) {
+    return (
+      <div className="p-4 text-sm text-ink-tertiary">
+        Cloud save isn&rsquo;t configured for this deployment — projects stay in this browser only.
+      </div>
+    );
+  }
 
   return (
-    <div className="p-3 border-t border-line space-y-2">
-      <div className="text-xs text-ink-tertiary uppercase tracking-wide">GitHub</div>
-
+    <div className="p-4 space-y-3">
       {!cloud.session && (
         <>
           <button
-            className="w-full bg-panel-raised hover:bg-line rounded px-3 py-2 text-sm text-ink border border-line"
+            className="w-full bg-accent hover:bg-accent/90 text-white rounded px-3 py-2 text-sm font-medium"
             onClick={handleConnect}
           >
             Connect GitHub

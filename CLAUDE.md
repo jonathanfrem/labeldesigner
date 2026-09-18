@@ -45,8 +45,6 @@ npm run lint       # eslint + tsc --noEmit
 - TypeScript strict. No `any` outside `.d.ts` shims.
 - All lengths in the model are millimetres, typed as `Mm`. Never mix in px or pt.
 - Geometry and layout logic is pure and unit-testable; keep it out of components.
-- Every user-facing string goes through the i18n layer (nb + en).
-- Commit per logical change with a message that says what changed and why.
 
 ## Before saying a milestone is done
 
